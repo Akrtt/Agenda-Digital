@@ -274,7 +274,6 @@
       .cal-header { padding: 8px 4px 4px 4px; }
       .side-panel { padding: 6px; }
     }
-
   </style>
 </head>
 
@@ -282,34 +281,19 @@
 
 
   <!-- Pantalla de login obligatoria tipo full page -->
-  <div id="loginModal">
-    <div class="calendar-login-card">
-      <div class="calendar-login-logo">
-        <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="16" rx="4" fill="#fff" stroke="#fff" stroke-width="2"/><rect x="3" y="5" width="18" height="16" rx="4" stroke="#2196f3" stroke-width="2"/><rect x="7" y="2" width="2" height="6" rx="1" fill="#2196f3"/><rect x="15" y="2" width="2" height="6" rx="1" fill="#2196f3"/></svg>
-      </div>
-      <div class="calendar-login-title">Bienvenido a tu Agenda</div>
-      <div class="calendar-login-sub">¿Ya tienes una cuenta?</div>
-      <form id="manualLoginForm" class="calendar-login-form">
-        <input id="loginEmail" type="email" placeholder="Correo electrónico" autocomplete="username" required />
-        <input id="loginPassword" type="password" placeholder="Contraseña" autocomplete="current-password" required />
-        <button id="manualLoginBtn" type="submit">Entrar</button>
+  <div id="loginModal" style="position:fixed;z-index:99999;inset:0;background:#fff;display:flex;align-items:center;justify-content:center;flex-direction:column;transition:opacity .3s;">
+    <div style="background:#fff;padding:40px 32px 32px 32px;border-radius:18px;box-shadow:0 8px 48px #2196f355;display:flex;flex-direction:column;align-items:center;min-width:320px;max-width:95vw;">
+      <h2 style="margin:0 0 18px 0;font-size:1.5rem;color:#222;font-family:system-ui,Arial,sans-serif;">Inicia sesión para acceder a tu agenda</h2>
+      <form id="manualLoginForm" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:0;">
+        <input id="loginEmail" type="email" placeholder="Correo electrónico" autocomplete="username" required style="margin-top:12px;padding:10px 12px;border-radius:8px;border:1px solid #ccc;width:100%;font-size:1rem;" />
+        <input id="loginPassword" type="password" placeholder="Contraseña" autocomplete="current-password" required style="margin-top:8px;padding:10px 12px;border-radius:8px;border:1px solid #ccc;width:100%;font-size:1rem;" />
+        <button id="manualLoginBtn" type="submit" style="margin-top:12px;padding:10px 24px;border-radius:10px;background:#2196f3;color:#fff;font-weight:700;border:none;cursor:pointer;font-size:1rem;width:100%;">Entrar</button>
       </form>
-      <div class="calendar-login-sep">o</div>
-      <button id="modalLoginGoogle" class="calendar-login-google" type="button">
-        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" /> Iniciar sesión con Google
+      <div style="margin:24px 0 8px 0;width:100%;text-align:center;color:#888;font-size:.95rem;">o accede con</div>
+      <button id="modalLoginGoogle" style="padding:12px 28px;border-radius:10px;background:#fffbe7;color:#2d2d6e;font-weight:700;border:1.5px solid #f9a825;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;gap:10px;">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" style="width:28px;height:28px;"/> Google
       </button>
-      <div class="calendar-login-footer">
-        ¿Eres nuevo? <button id="showSignup" class="calendar-login-link" type="button">Crea una cuenta</button>
-      </div>
-      <form id="signupForm" class="calendar-login-form" style="display:none;">
-        <input id="signupEmail" type="email" placeholder="Correo electrónico" autocomplete="username" required />
-        <input id="signupPassword" type="password" placeholder="Contraseña nueva" autocomplete="new-password" required />
-        <button id="signupBtn" type="submit">Crear cuenta</button>
-        <div class="calendar-login-footer">
-          ¿Ya tienes cuenta? <button id="showLogin" class="calendar-login-link" type="button">Inicia sesión</button>
-        </div>
-      </form>
-      <div id="loginError"></div>
+      <div id="loginError" style="color:#d32f2f;font-size:.98rem;margin-top:10px;min-height:22px;text-align:center;"></div>
     </div>
   </div>
 
@@ -967,12 +951,13 @@ async function guardarDatosUsuarioEnFirestore(campo, valor) {
 
 <!-- Botones de ejemplo para login/logout -->
 <div style="position:fixed;bottom:18px;right:18px;z-index:5000;display:flex;gap:10px;">
+  <button id="loginGoogle" style="padding:10px 18px;border-radius:10px;background:#fffbe7;color:#2d2d6e;font-weight:700;border:1.5px solid #f9a825;cursor:pointer;">Login con Google</button>
   <button id="logout" style="padding:10px 18px;border-radius:10px;background:#f9a825;color:#fff;font-weight:700;border:none;cursor:pointer;">Logout</button>
 </div>
 <script type="module">
   // Importar los módulos necesarios
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
   // Tu configuración (copiada de Firebase Console)
@@ -1005,76 +990,82 @@ async function guardarDatosUsuarioEnFirestore(campo, valor) {
   // 🔹 Ejemplo: Guardar un evento en Firestore
   // 🔹 Vigilante de autenticación: onAuthStateChanged
   // Login modal button
-  const signupForm = document.getElementById("signupForm");
-const signupBtn = document.getElementById("signupBtn");
-const signupEmail = document.getElementById("signupEmail");
-const signupPassword = document.getElementById("signupPassword");
-const manualLoginForm = document.getElementById("manualLoginForm");
-const manualLoginBtn = document.getElementById("manualLoginBtn");
-const loginEmail = document.getElementById("loginEmail");
-const loginPassword = document.getElementById("loginPassword");
-const loginError = document.getElementById("loginError");
-const loginModal = document.getElementById("loginModal");
-const mainApp = document.getElementById("mainApp");
-const modalLoginBtn = document.getElementById("modalLoginGoogle");
+  const modalLoginBtn = document.getElementById("modalLoginGoogle");
+  const manualLoginForm = document.getElementById("manualLoginForm");
+  const manualLoginBtn = document.getElementById("manualLoginBtn");
+  const loginEmail = document.getElementById("loginEmail");
+  const loginPassword = document.getElementById("loginPassword");
+  const loginError = document.getElementById("loginError");
+  const loginModal = document.getElementById("loginModal");
+  const mainApp = document.getElementById("mainApp");
+  // ✨ EXPORTA LAS FUNCIONES DE FIRESTORE AL OBJETO WINDOW ✨
+  // para que el script principal pueda usarlas en `guardarDatosUsuarioEnFirestore`
+  window.firebaseFirestore.doc = doc;
+  window.firebaseFirestore.getDoc = getDoc;
+  window.firebaseFirestore.setDoc = setDoc;
+  window.firebaseFirestore.updateDoc = updateDoc;
 
-// Registro profesional con Firebase
-if (signupForm) {
-  signupForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    signupBtn.disabled = true;
-    loginError.textContent = '';
-    try {
-      await createUserWithEmailAndPassword(auth, signupEmail.value, signupPassword.value);
-      signupForm.reset();
-      loginError.textContent = 'Cuenta creada correctamente. Ya puedes usar la agenda.';
-      loginError.style.color = '#388e3c';
-    } catch (err) {
-      loginError.textContent = err.message || "Error al crear cuenta";
-      loginError.style.color = '#d32f2f';
-    } finally {
-      signupBtn.disabled = false;
-    }
-  });
-}
 
-// Login profesional con Firebase
-if (manualLoginForm) {
-  manualLoginForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    manualLoginBtn.disabled = true;
-    loginError.textContent = '';
-    try {
-      await signInWithEmailAndPassword(auth, loginEmail.value, loginPassword.value);
-      manualLoginForm.reset();
-    } catch (err) {
-      loginError.textContent = err.message || "Error en login";
-      loginError.style.color = '#d32f2f';
-    } finally {
-      manualLoginBtn.disabled = false;
-    }
-  });
-}
+  if (modalLoginBtn) {
+    modalLoginBtn.addEventListener("click", async () => {
+      try {
+        modalLoginBtn.disabled = true;
+        await signInWithPopup(auth, provider);
+      } catch (err) {
+        console.error("Error en login modal:", err);
+        if (loginError) loginError.textContent = err.message || "Error en login con Google";
+      } finally {
+        modalLoginBtn.disabled = false;
+      }
+    });
+  }
 
-// Google login profesional
-if (modalLoginBtn) {
-  modalLoginBtn.onclick = null;
-  modalLoginBtn.addEventListener('click', async () => {
-    modalLoginBtn.disabled = true;
-    loginError.textContent = '';
+  // Login manual con email y contraseña
+  if (manualLoginForm) {
+    manualLoginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!loginEmail.value || !loginPassword.value) return;
+      manualLoginBtn.disabled = true;
+      loginError.textContent = '';
+      try {
+        await signInWithEmailAndPassword(auth, loginEmail.value, loginPassword.value);
+      } catch (err) {
+        console.error("Error en login manual:", err);
+        loginError.textContent = err.message || "Error en login";
+      } finally {
+        manualLoginBtn.disabled = false;
+      }
+    });
+  }
+  const loginButton = document.getElementById("loginGoogle");
+  const logoutButton = document.getElementById("logout");
+  // Crear un span para mostrar el email del usuario
+
+  // Crear contenedor para mostrar email y foto
+  const userDisplay = document.createElement('span');
+  userDisplay.style.display = 'flex';
+  userDisplay.style.alignItems = 'center';
+  userDisplay.style.marginLeft = '10px';
+  userDisplay.style.color = '#fff';
+  userDisplay.style.fontWeight = 'bold';
+  userDisplay.style.gap = '8px';
+  loginButton.parentNode.appendChild(userDisplay);
+
+  // Estado inicial: ocultar logout y userDisplay
+  logoutButton.style.display = 'none';
+  userDisplay.style.display = 'none';
+
+  // Refuerzo: asegurar que el evento click de Google Login SIEMPRE esté conectado
+  loginButton.onclick = null;
+  loginButton.addEventListener('click', async () => {
     try {
       await signInWithPopup(auth, provider);
     } catch (err) {
-      loginError.textContent = err.message || "Error en login con Google";
-      loginError.style.color = '#d32f2f';
-    } finally {
-      modalLoginBtn.disabled = false;
+      console.error("Error en login con Google:", err);
     }
   });
-}
 
-// 🔹 Ejemplo: Guardar un evento en Firestore
-  // 🔹 Vigilante de autenticación: onAuthStateChanged
+  // Eliminada importación duplicada de onAuthStateChanged
   onAuthStateChanged(auth, async (user) => { // ¡Ahora la función es correctamente asíncrona!
     window.currentUserData = user; // Guarda el usuario globalmente
 

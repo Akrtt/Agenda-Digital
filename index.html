@@ -288,22 +288,27 @@
         <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="16" rx="4" fill="#fff" stroke="#fff" stroke-width="2"/><rect x="3" y="5" width="18" height="16" rx="4" stroke="#2196f3" stroke-width="2"/><rect x="7" y="2" width="2" height="6" rx="1" fill="#2196f3"/><rect x="15" y="2" width="2" height="6" rx="1" fill="#2196f3"/></svg>
       </div>
       <div class="calendar-login-title">Bienvenido a tu Agenda</div>
-      <div class="calendar-login-sub">Accede o crea tu cuenta para gestionar tu calendario personal</div>
-      <form id="signupForm" class="calendar-login-form">
-        <input id="signupEmail" type="email" placeholder="Correo electrónico" autocomplete="username" required />
-        <input id="signupPassword" type="password" placeholder="Contraseña nueva" autocomplete="new-password" required />
-        <button id="signupBtn" type="submit">Crear cuenta</button>
-      </form>
-      <div class="calendar-login-sep">¿Ya tienes cuenta?</div>
+      <div class="calendar-login-sub">¿Ya tienes una cuenta?</div>
       <form id="manualLoginForm" class="calendar-login-form">
         <input id="loginEmail" type="email" placeholder="Correo electrónico" autocomplete="username" required />
         <input id="loginPassword" type="password" placeholder="Contraseña" autocomplete="current-password" required />
         <button id="manualLoginBtn" type="submit">Entrar</button>
       </form>
-      <div class="calendar-login-sep">o accede rápido con</div>
+      <div class="calendar-login-sep">o</div>
       <button id="modalLoginGoogle" class="calendar-login-google" type="button">
-        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" /> Google
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" /> Iniciar sesión con Google
       </button>
+      <div class="calendar-login-footer">
+        ¿Eres nuevo? <button id="showSignup" class="calendar-login-link" type="button">Crea una cuenta</button>
+      </div>
+      <form id="signupForm" class="calendar-login-form" style="display:none;">
+        <input id="signupEmail" type="email" placeholder="Correo electrónico" autocomplete="username" required />
+        <input id="signupPassword" type="password" placeholder="Contraseña nueva" autocomplete="new-password" required />
+        <button id="signupBtn" type="submit">Crear cuenta</button>
+        <div class="calendar-login-footer">
+          ¿Ya tienes cuenta? <button id="showLogin" class="calendar-login-link" type="button">Inicia sesión</button>
+        </div>
+      </form>
       <div id="loginError"></div>
     </div>
   </div>

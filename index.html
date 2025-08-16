@@ -973,17 +973,9 @@ async function guardarDatosUsuarioEnFirestore(campo, valor) {
   const auth = getAuth(app);
   window.db = getFirestore(app);
 
-  // 🔹 Ejemplo: Login con Google
+
+  // 🔹 Login con Google (solo una vez, abajo se usa el mismo provider y auth)
   const provider = new GoogleAuthProvider();
-  document.getElementById("loginGoogle").addEventListener("click", async () => {
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      console.log("Usuario logeado:", user.email);
-    } catch (err) {
-      console.error("Error en login:", err);
-    }
-  });
 
   // 🔹 Ejemplo: Logout
   document.getElementById("logout").addEventListener("click", async () => {

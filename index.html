@@ -279,6 +279,15 @@
 
 <body>
 
+  <!-- Pantalla de login obligatoria -->
+  <div id="loginModal" style="position:fixed;z-index:99999;inset:0;background:#fff;display:flex;align-items:center;justify-content:center;flex-direction:column;transition:opacity .3s;">
+    <div style="background:#fff;padding:40px 32px 32px 32px;border-radius:18px;box-shadow:0 8px 48px #2196f355;display:flex;flex-direction:column;align-items:center;min-width:320px;">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" style="width:48px;height:48px;margin-bottom:18px;"/>
+      <h2 style="margin:0 0 18px 0;font-size:1.5rem;color:#222;font-family:system-ui,Arial,sans-serif;">Inicia sesión con Google</h2>
+      <button id="modalLoginGoogle" style="padding:12px 28px;border-radius:10px;background:#fffbe7;color:#2d2d6e;font-weight:700;border:1.5px solid #f9a825;cursor:pointer;font-size:1.1rem;">Login con Google</button>
+    </div>
+  </div>
+
   <div class="stage" aria-label="Agenda 3D con calendario">
     <div class="agenda" id="agenda">
       <!-- Portada -->
@@ -886,6 +895,21 @@
 
   // 🔹 Ejemplo: Guardar un evento en Firestore
   // 🔹 Vigilante de autenticación: onAuthStateChanged
+  // Login modal button
+  const modalLoginBtn = document.getElementById("modalLoginGoogle");
+  const loginModal = document.getElementById("loginModal");
+  if (modalLoginBtn) {
+    modalLoginBtn.addEventListener("click", async () => {
+      try {
+        modalLoginBtn.disabled = true;
+        await signInWithPopup(auth, provider);
+      } catch (err) {
+        console.error("Error en login modal:", err);
+      } finally {
+        modalLoginBtn.disabled = false;
+      }
+    });
+  }
   const loginButton = document.getElementById("loginGoogle");
   const logoutButton = document.getElementById("logout");
   // Crear un span para mostrar el email del usuario
@@ -909,9 +933,8 @@
   onAuthStateChanged(auth, (user) => {
     if (user) {
       // Usuario logeado
-      console.log("Estado de autenticación: Usuario logeado:", user.email);
+      if (loginModal) loginModal.style.display = 'none';
       userDisplay.innerHTML = '';
-      // Foto de perfil si existe
       if (user.photoURL) {
         const img = document.createElement('img');
         img.src = user.photoURL;
@@ -922,7 +945,6 @@
         img.style.objectFit = 'cover';
         userDisplay.appendChild(img);
       }
-      // Email
       const emailSpan = document.createElement('span');
       emailSpan.textContent = user.email;
       userDisplay.appendChild(emailSpan);
@@ -931,7 +953,7 @@
       userDisplay.style.display = 'flex';
     } else {
       // No logeado
-      console.log("Estado de autenticación: No hay usuario logeado.");
+      if (loginModal) loginModal.style.display = 'flex';
       userDisplay.innerHTML = '';
       loginButton.style.display = 'block';
       logoutButton.style.display = 'none';

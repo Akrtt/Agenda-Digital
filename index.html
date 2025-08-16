@@ -470,8 +470,8 @@ let stickers = {};
 // Referencias a las instancias de Firebase (se inicializan al llamar actualizarCalendarioUI)
 let db = null;
 let currentUserData = null;
-let mesVisible = null;
-let diaActivo = null;
+  let mesVisible = new Date().getMonth();
+  let diaActivo = new Date().getDate();
 
 // ✨ Sincronización entre las variables locales y las globales de `window` ✨
 // Esto es CRUCIAL. Cada vez que `window.userNotes`, `window.userEvents`, etc.
@@ -954,7 +954,7 @@ async function guardarDatosUsuarioEnFirestore(campo, valor) {
   // Importar los módulos necesarios
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
   // Tu configuración (copiada de Firebase Console)
   const firebaseConfig = {

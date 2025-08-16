@@ -470,6 +470,8 @@ let stickers = {};
 // Referencias a las instancias de Firebase (se inicializan al llamar actualizarCalendarioUI)
 let db = null;
 let currentUserData = null;
+let mesVisible = null;
+let diaActivo = null;
 
 // ✨ Sincronización entre las variables locales y las globales de `window` ✨
 // Esto es CRUCIAL. Cada vez que `window.userNotes`, `window.userEvents`, etc.

@@ -307,7 +307,7 @@
           <div class="tag">HOY</div>
           <h3 class="mes-portada" id="mesPortada"></h3>
           <div class="dia-wrap"><h1 class="dia-portada" id="diaPortada"></h1></div>
-          <div class="hora-actual" id="horaActual" aria-label="Hora actual" style="margin-top:8px;font-size:1.25rem;font-weight:500;color:#b2e0f7;text-shadow:0 1px 4px #1116;letter-spacing:.04em;"></div>
+          <div class="hora-actual" id="horaActual" aria-label="Hora actual" style="margin-top:8px;font-size:1.25rem;font-weight:500;color:#b2e0f7;text-shadow:0 1px 0 #1116;letter-spacing:.04em;"></div>
     <style>
     .hora-actual {
       font-family: 'Segoe UI Mono', 'Consolas', monospace;
@@ -449,39 +449,102 @@
     const now = new Date();
     const ANYO = now.getFullYear();
 
-    // Claves LocalStorage
+    // ✨ NUEVO: Exportar funciones de Firestore al window para el script principal ✨
+window.firebaseFirestore = {
+  doc: null,
+  getDoc: null,
+  setDoc: null,
+  updateDoc: null
+};
 
-  // ✨ ELIMINAMOS EL USO DIRECTO DE LOCALSTORAGE AL INICIO ✨
-  // const LS_NOTAS   = 'agenda_notas_' + ANYO;
-  // const LS_EVENTOS = 'agenda_eventos_' + ANYO;
-  // const LS_STICKER = 'agenda_stickers_' + ANYO;
+// =============================================================
+// GESTIÓN DE DATOS (Firestore)
+// =============================================================
 
-  // ✨ VARIABLES LOCALES QUE REFLEJAN EL ESTADO GLOBAL DE WINDOW ✨
-  // Estas son las variables `let` que tus funciones de calendario usarán internamente.
-  // Serán sincronizadas con las variables `window.user...` que maneja el script de Firebase.
-  let notas = {};
-  let eventos = {};
-  let stickers = {};
+// Variables locales que tus funciones de calendario usarán internamente.
+// Serán sincronizadas con las variables `window.user...` que maneja el script de Firebase.
+let notas = {};
+let eventos = {};
+let stickers = {};
 
-  // ✨ ACCESO A LAS INSTANCIAS DE FIREBASE DESDE EL SCRIPT TYPE="MODULE" ✨
-  // Estas variables se inicializarán cuando el script type="module" se haya ejecutado.
-  let db = null;
-  let currentUserData = null;
+// Referencias a las instancias de Firebase (se inicializan al llamar actualizarCalendarioUI)
+let db = null;
+let currentUserData = null;
 
-  // ✨ Sincronización entre las variables locales y las globales de `window` ✨
-  // Esto es CRUCIAL. Cada vez que `window.userNotes`, `window.userEvents`, etc.
-  // se actualicen (por ejemplo, al iniciar sesión), estas propiedades setearán
-  // tus variables `let notas`, `let eventos`, etc., y luego llamarán a la función
-  // `actualizarCalendarioUI` para que la interfaz se redibuje.
+// ✨ Sincronización entre las variables locales y las globales de `window` ✨
+// Esto es CRUCIAL. Cada vez que `window.userNotes`, `window.userEvents`, etc.
+// se actualicen (por ejemplo, al iniciar sesión o cargar datos), estas propiedades
+// setearán tus variables `let notas`, `let eventos`, `let stickers` y luego
+// llamarán a `actualizarCalendarioUI` para que la interfaz se redibuje.
+Object.defineProperty(window, 'userNotes', {
+    get: function() { return notas; },
+    set: function(val) { notas = val; window.actualizarCalendarioUI(); }
+});
+Object.defineProperty(window, 'userEvents', {
+    get: function() { return eventos; },
+    set: function(val) { eventos = val; window.actualizarCalendarioUI(); }
+});
+Object.defineProperty(window, 'userStickers', {
+    get: function() { return stickers; },
+    set: function(val) { stickers = val; window.actualizarCalendarioUI(); }
+});
 
+// ✨ Función para actualizar la UI completa después de cargar/cambiar datos ✨
+// Esta función se exporta al objeto `window` para que el script `type="module"` pueda llamarla.
+window.actualizarCalendarioUI = function() {
+    // Asegúrate de que las variables locales `db` y `currentUserData` estén actualizadas
+    // con las instancias de Firebase que vienen del script `type="module"`.
+    db = window.db;
+    currentUserData = window.currentUserData;
 
+    // Reconstruye el mes visible con los datos actuales
+    if (mesVisible !== null) {
+        construirMes(mesVisible);
+    } else if (currentUserData) {
+        // Si no hay un mes visible (ej. justo al cargar la página) y el usuario está logeado,
+        // abrimos el mes actual por defecto para que vea sus datos.
+        abrirCalendario(now.getMonth());
+    } else {
+        // Si no hay usuario logeado y no hay mes visible, al menos muestra el mes actual vacío.
+        construirMes(now.getMonth());
+    }
+    actualizarSidePanel(); // Asegura que el panel lateral muestre la nota correcta del día activo.
+};
 
-    let mesVisible = null;
-    let diaActivo = null; // { mes, dia }
+// Este listener asegura que `actualizarCalendarioUI` se llame al cargar la página
+// una vez que el DOM esté completamente cargado y las variables de Firebase puedan estar disponibles.
+document.addEventListener('DOMContentLoaded', () => {
+    window.actualizarCalendarioUI();
+});
 
-    // Helpers de clave
-    const keyDay = (m,d) => `${m}-${d}`;
+// ✨ FUNCIÓN AUXILIAR PARA GUARDAR DATOS EN FIRESTORE ✨
+// 'campo' será 'notas', 'eventos' o 'stickers'
+// 'valor' será el mapa completo (objeto) de ese campo
+async function guardarDatosUsuarioEnFirestore(campo, valor) {
+    // Solo guarda si hay un usuario logeado
+    if (!currentUserData || !currentUserData.uid) {
+        console.warn(`No hay usuario logeado. El campo '${campo}' no se guardará en Firestore.`);
+        // Opcional: podrías guardar en localStorage aquí para usuarios no logeados si lo deseas
+        return;
+    }
 
+    // Asegúrate de que la instancia de Firestore (db) esté disponible
+    if (!db) {
+        console.error("La instancia de Firestore (db) no está disponible. Asegúrate de que el script type=module se cargue correctamente.");
+        return;
+    }
+
+    const { doc, setDoc } = window.firebaseFirestore; // Obtenemos las funciones de Firestore
+    const userDocRef = doc(db, "users", currentUserData.uid); // Referencia al documento del usuario
+
+    try {
+        // setDoc con { merge: true } fusiona los cambios sin sobrescribir todo el documento
+        await setDoc(userDocRef, { [campo]: valor }, { merge: true });
+        console.log(`Campo '${campo}' guardado en Firestore para el usuario ${currentUserData.uid}.`);
+    } catch (error) {
+        console.error(`Error guardando campo '${campo}' en Firestore:`, error);
+    }
+}
     // =============================================================
     // PORTADA + ÍNDICE
     // =============================================================
@@ -882,7 +945,7 @@
 
 <!-- Botones de ejemplo para login/logout -->
 <div style="position:fixed;bottom:18px;right:18px;z-index:5000;display:flex;gap:10px;">
-  <button id="loginGoogle" style="padding:10px 18px;border-radius:10px;background:#fffbe7;color:#2d2d6e;font-weight:700;border:1px solid #f9a825;cursor:pointer;">Login con Google</button>
+  <button id="loginGoogle" style="padding:10px 18px;border-radius:10px;background:#fffbe7;color:#2d2d6e;font-weight:700;border:1.5px solid #f9a825;cursor:pointer;">Login con Google</button>
   <button id="logout" style="padding:10px 18px;border-radius:10px;background:#f9a825;color:#fff;font-weight:700;border:none;cursor:pointer;">Logout</button>
 </div>
 <script type="module">
@@ -938,6 +1001,22 @@
   const loginError = document.getElementById("loginError");
   const loginModal = document.getElementById("loginModal");
   const mainApp = document.getElementById("mainApp");
+  // ✨ EXPORTA LAS FUNCIONES DE FIRESTORE AL OBJETO WINDOW ✨
+  // para que el script principal pueda usarlas en `guardarDatosUsuarioEnFirestore`
+  window.firebaseFirestore.doc = doc;
+  window.firebaseFirestore.getDoc = getDoc;
+  window.firebaseFirestore.setDoc = setDoc;
+  window.firebaseFirestore.updateDoc = updateDoc;
+
+  // Login modal button
+  const modalLoginBtn = document.getElementById("modalLoginGoogle");
+  const manualLoginForm = document.getElementById("manualLoginForm");
+  const manualLoginBtn = document.getElementById("manualLoginBtn");
+  const loginEmail = document.getElementById("loginEmail");
+  const loginPassword = document.getElementById("loginPassword");
+  const loginError = document.getElementById("loginError");
+  const loginModal = document.getElementById("loginModal");
+  const mainApp = document.getElementById("mainApp");
   if (modalLoginBtn) {
     modalLoginBtn.addEventListener("click", async () => {
       try {
@@ -983,17 +1062,19 @@
   userDisplay.style.gap = '8px';
   loginButton.parentNode.appendChild(userDisplay);
 
-  // Estado inicial: ocultar logout
   // Estado inicial: ocultar logout y userDisplay
   logoutButton.style.display = 'none';
   userDisplay.style.display = 'none';
 
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-  onAuthStateChanged(auth, (user) => {
+  onAuthStateChanged(auth, async (user) => { // ¡Ahora la función es correctamente asíncrona!
+    window.currentUserData = user; // Guarda el usuario globalmente
+
     if (user) {
       // Usuario logeado
       if (loginModal) loginModal.style.display = 'none';
       if (mainApp) mainApp.style.display = '';
+
       userDisplay.innerHTML = '';
       if (user.photoURL) {
         const img = document.createElement('img');
@@ -1008,32 +1089,83 @@
       const emailSpan = document.createElement('span');
       emailSpan.textContent = user.email;
       userDisplay.appendChild(emailSpan);
+
       loginButton.style.display = 'none';
       logoutButton.style.display = 'block';
       userDisplay.style.display = 'flex';
+
+      // ✨ NUEVA LÓGICA PARA CARGAR DATOS DE FIRESTORE O MIGRAR DESDE LOCALSTORAGE ✨
+      const userDocRef = doc(db, "users", user.uid); // Referencia al documento del usuario
+      const userDocSnap = await getDoc(userDocRef); // Intenta obtener el documento
+
+      if (userDocSnap.exists()) {
+        // Los datos del usuario ya están en Firestore, los cargamos en las variables globales
+        const data = userDocSnap.data();
+        window.userNotes = data.notas || {};
+        window.userEvents = data.eventos || {};
+        window.userStickers = data.stickers || {};
+        console.log("Datos del usuario cargados desde Firestore.");
+      } else {
+        // Es la primera vez que el usuario inicia sesión o no tiene datos en Firestore.
+        // Verificamos localStorage para una posible migración.
+        console.log("No hay datos de usuario en Firestore. Verificando localStorage para posible migración.");
+
+        const currentYear = new Date().getFullYear();
+        const localNotas = JSON.parse(localStorage.getItem('agenda_notas_' + currentYear) || '{}');
+        const localEventos = JSON.parse(localStorage.getItem('agenda_eventos_' + currentYear) || '{}');
+        const localStickers = JSON.parse(localStorage.getItem('agenda_stickers_' + currentYear) || '{}');
+
+        if (Object.keys(localNotas).length > 0 || Object.keys(localEventos).length > 0 || Object.keys(localStickers).length > 0) {
+          console.log("¡Migrando datos de localStorage a Firestore!");
+          window.userNotes = localNotas;
+          window.userEvents = localEventos;
+          window.userStickers = localStickers;
+          await setDoc(userDocRef, { // Crea el documento del usuario en Firestore con los datos migrados
+            notas: window.userNotes,
+            eventos: window.userEvents,
+            stickers: window.userStickers
+          });
+          console.log("Migración completada. Limpiando localStorage.");
+          localStorage.removeItem('agenda_notas_' + currentYear);
+          localStorage.removeItem('agenda_eventos_' + currentYear);
+          localStorage.removeItem('agenda_stickers_' + currentYear);
+        } else {
+          // Si no hay datos en localStorage, inicializa las variables globales como vacías
+          window.userNotes = {};
+          window.userEvents = {};
+          window.userStickers = {};
+          console.log("No hay datos en localStorage para migrar.");
+        }
+      }
+
+      // Después de cargar o migrar, fuerza la actualización de la UI del calendario.
+      if (window.actualizarCalendarioUI) {
+          window.actualizarCalendarioUI();
+      } else {
+          console.warn("actualizarCalendarioUI no está definida globalmente. La interfaz del calendario podría no actualizarse.");
+      }
+
+
     } else {
       // No logeado
       if (loginModal) loginModal.style.display = 'flex';
       if (mainApp) mainApp.style.display = 'none';
+
       userDisplay.innerHTML = '';
       loginButton.style.display = 'block';
       logoutButton.style.display = 'none';
       userDisplay.style.display = 'none';
+
+      // Limpiamos los datos del calendario cuando el usuario cierra sesión
+      window.currentUserData = null;
+      window.userNotes = {};
+      window.userEvents = {};
+      window.userStickers = {};
+
+      if (window.actualizarCalendarioUI) {
+          window.actualizarCalendarioUI(); // Actualiza la UI para mostrar un calendario vacío/no logeado
+      }
     }
   });
-  async function guardarEvento(uid, evento) {
-    await addDoc(collection(db, "users", uid, "events"), evento);
-    console.log("Evento guardado:", evento);
-  }
-
-  // 🔹 Ejemplo: Escuchar cambios en tiempo real
-  function escucharEventos(uid) {
-    const ref = collection(db, "users", uid, "events");
-    onSnapshot(ref, (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
-        console.log("Cambio detectado:", change.doc.data());
-      });
-    });
-  }
 </script>
 </html>

@@ -468,6 +468,10 @@ let eventos = {};
 let stickers = {};
 
 // Referencias a las instancias de Firebase (se inicializan al llamar actualizarCalendarioUI)
+// Función clave para las operaciones de calendario
+function keyDay(mes, dia) {
+  return mes + '-' + dia;
+}
 let db = null;
 let currentUserData = null;
   let mesVisible = new Date().getMonth();
@@ -1051,7 +1055,17 @@ async function guardarDatosUsuarioEnFirestore(campo, valor) {
   logoutButton.style.display = 'none';
   userDisplay.style.display = 'none';
 
-  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+  // Refuerzo: asegurar que el evento click de Google Login SIEMPRE esté conectado
+  loginButton.onclick = null;
+  loginButton.addEventListener('click', async () => {
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (err) {
+      console.error("Error en login con Google:", err);
+    }
+  });
+
+  // Eliminada importación duplicada de onAuthStateChanged
   onAuthStateChanged(auth, async (user) => { // ¡Ahora la función es correctamente asíncrona!
     window.currentUserData = user; // Guarda el usuario globalmente
 

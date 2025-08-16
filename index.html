@@ -450,14 +450,68 @@
     const ANYO = now.getFullYear();
 
     // Claves LocalStorage
-    const LS_NOTAS   = 'agenda_notas_' + ANYO;
-    const LS_EVENTOS = 'agenda_eventos_' + ANYO;
-    const LS_STICKER = 'agenda_stickers_' + ANYO;
 
-    // Estado
-    let notas = JSON.parse(localStorage.getItem(LS_NOTAS) || '{}');
-    let eventos = JSON.parse(localStorage.getItem(LS_EVENTOS) || '{}');
-    let stickers = JSON.parse(localStorage.getItem(LS_STICKER) || '{}');
+  // ✨ ELIMINAMOS EL USO DIRECTO DE LOCALSTORAGE AL INICIO ✨
+  // const LS_NOTAS   = 'agenda_notas_' + ANYO;
+  // const LS_EVENTOS = 'agenda_eventos_' + ANYO;
+  // const LS_STICKER = 'agenda_stickers_' + ANYO;
+
+  // ✨ VARIABLES LOCALES QUE REFLEJAN EL ESTADO GLOBAL DE WINDOW ✨
+  // Estas son las variables `let` que tus funciones de calendario usarán internamente.
+  // Serán sincronizadas con las variables `window.user...` que maneja el script de Firebase.
+  let notas = {};
+  let eventos = {};
+  let stickers = {};
+
+  // ✨ ACCESO A LAS INSTANCIAS DE FIREBASE DESDE EL SCRIPT TYPE="MODULE" ✨
+  // Estas variables se inicializarán cuando el script type="module" se haya ejecutado.
+  let db = null;
+  let currentUserData = null;
+
+  // ✨ Sincronización entre las variables locales y las globales de `window` ✨
+  // Esto es CRUCIAL. Cada vez que `window.userNotes`, `window.userEvents`, etc.
+  // se actualicen (por ejemplo, al iniciar sesión), estas propiedades setearán
+  // tus variables `let notas`, `let eventos`, etc., y luego llamarán a la función
+  // `actualizarCalendarioUI` para que la interfaz se redibuje.
+  Object.defineProperty(window, 'userNotes', {
+    get: function() { return notas; },
+    set: function(val) { notas = val; if (window.actualizarCalendarioUI) window.actualizarCalendarioUI(); }
+  });
+  Object.defineProperty(window, 'userEvents', {
+    get: function() { return eventos; },
+    set: function(val) { eventos = val; if (window.actualizarCalendarioUI) window.actualizarCalendarioUI(); }
+  });
+  Object.defineProperty(window, 'userStickers', {
+    get: function() { return stickers; },
+    set: function(val) { stickers = val; if (window.actualizarCalendarioUI) window.actualizarCalendarioUI(); }
+  });
+
+  // ✨ Función para actualizar la UI completa después de cargar/cambiar datos ✨
+  // Esta función se exporta al objeto `window` para que el script `type="module"` pueda llamarla.
+  window.actualizarCalendarioUI = function() {
+    // Sincroniza las referencias a `db` y `currentUserData` desde el objeto `window`
+    db = window.db;
+    currentUserData = window.currentUserData;
+
+    // Si hay un mes visible actualmente, lo reconstruimos con los nuevos datos
+    if (mesVisible !== null) {
+      construirMes(mesVisible);
+    }
+    // Si no hay un mes visible (por ejemplo, justo al cargar la página),
+    // y el usuario está logueado, podemos abrir el mes actual por defecto.
+    else if (currentUserData) {
+       abrirCalendario(now.getMonth());
+    } else {
+       construirMes(now.getMonth());
+    }
+    actualizarSidePanel();
+  };
+
+  // Este listener garantiza que la UI se actualice una vez que el DOM esté completamente cargado.
+  // La verdadera "inicialización" de datos ocurre en `onAuthStateChanged` en el script tipo `module`.
+  document.addEventListener('DOMContentLoaded', () => {
+    window.actualizarCalendarioUI();
+  });
 
     let mesVisible = null;
     let diaActivo = null; // { mes, dia }

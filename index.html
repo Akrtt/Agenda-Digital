@@ -283,13 +283,19 @@
   <!-- Pantalla de login obligatoria tipo full page -->
   <div id="loginModal" style="position:fixed;z-index:99999;inset:0;background:#fff;display:flex;align-items:center;justify-content:center;flex-direction:column;transition:opacity .3s;">
     <div style="background:#fff;padding:40px 32px 32px 32px;border-radius:18px;box-shadow:0 8px 48px #2196f355;display:flex;flex-direction:column;align-items:center;min-width:320px;max-width:95vw;">
-      <h2 style="margin:0 0 18px 0;font-size:1.5rem;color:#222;font-family:system-ui,Arial,sans-serif;">Inicia sesión para acceder a tu agenda</h2>
+      <h2 style="margin:0 0 18px 0;font-size:1.5rem;color:#222;font-family:system-ui,Arial,sans-serif;">Accede o crea tu cuenta</h2>
+      <form id="signupForm" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:0;">
+        <input id="signupEmail" type="email" placeholder="Correo electrónico" autocomplete="username" required style="margin-top:12px;padding:10px 12px;border-radius:8px;border:1px solid #ccc;width:100%;font-size:1rem;" />
+        <input id="signupPassword" type="password" placeholder="Contraseña nueva" autocomplete="new-password" required style="margin-top:8px;padding:10px 12px;border-radius:8px;border:1px solid #ccc;width:100%;font-size:1rem;" />
+        <button id="signupBtn" type="submit" style="margin-top:12px;padding:10px 24px;border-radius:10px;background:#43a047;color:#fff;font-weight:700;border:none;cursor:pointer;font-size:1rem;width:100%;">Crear cuenta</button>
+      </form>
+      <div style="margin:18px 0 8px 0;width:100%;text-align:center;color:#888;font-size:.95rem;">o inicia sesión</div>
       <form id="manualLoginForm" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:0;">
         <input id="loginEmail" type="email" placeholder="Correo electrónico" autocomplete="username" required style="margin-top:12px;padding:10px 12px;border-radius:8px;border:1px solid #ccc;width:100%;font-size:1rem;" />
         <input id="loginPassword" type="password" placeholder="Contraseña" autocomplete="current-password" required style="margin-top:8px;padding:10px 12px;border-radius:8px;border:1px solid #ccc;width:100%;font-size:1rem;" />
         <button id="manualLoginBtn" type="submit" style="margin-top:12px;padding:10px 24px;border-radius:10px;background:#2196f3;color:#fff;font-weight:700;border:none;cursor:pointer;font-size:1rem;width:100%;">Entrar</button>
       </form>
-      <div style="margin:24px 0 8px 0;width:100%;text-align:center;color:#888;font-size:.95rem;">o accede con</div>
+      <div style="margin:18px 0 8px 0;width:100%;text-align:center;color:#888;font-size:.95rem;">o accede rápido con</div>
       <button id="modalLoginGoogle" style="padding:12px 28px;border-radius:10px;background:#fffbe7;color:#2d2d6e;font-weight:700;border:1.5px solid #f9a825;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;gap:10px;">
         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" style="width:28px;height:28px;"/> Google
       </button>
@@ -951,13 +957,12 @@ async function guardarDatosUsuarioEnFirestore(campo, valor) {
 
 <!-- Botones de ejemplo para login/logout -->
 <div style="position:fixed;bottom:18px;right:18px;z-index:5000;display:flex;gap:10px;">
-  <button id="loginGoogle" style="padding:10px 18px;border-radius:10px;background:#fffbe7;color:#2d2d6e;font-weight:700;border:1.5px solid #f9a825;cursor:pointer;">Login con Google</button>
   <button id="logout" style="padding:10px 18px;border-radius:10px;background:#f9a825;color:#fff;font-weight:700;border:none;cursor:pointer;">Logout</button>
 </div>
 <script type="module">
   // Importar los módulos necesarios
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
   // Tu configuración (copiada de Firebase Console)
@@ -990,6 +995,10 @@ async function guardarDatosUsuarioEnFirestore(campo, valor) {
   // 🔹 Ejemplo: Guardar un evento en Firestore
   // 🔹 Vigilante de autenticación: onAuthStateChanged
   // Login modal button
+  const signupForm = document.getElementById("signupForm");
+const signupBtn = document.getElementById("signupBtn");
+const signupEmail = document.getElementById("signupEmail");
+const signupPassword = document.getElementById("signupPassword");
   const modalLoginBtn = document.getElementById("modalLoginGoogle");
   const manualLoginForm = document.getElementById("manualLoginForm");
   const manualLoginBtn = document.getElementById("manualLoginBtn");
@@ -1037,6 +1046,25 @@ async function guardarDatosUsuarioEnFirestore(campo, valor) {
       }
     });
   }
+  // Registro de usuario (sign up)
+if (signupForm) {
+  signupForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!signupEmail.value || !signupPassword.value) return;
+    signupBtn.disabled = true;
+    loginError.textContent = '';
+    try {
+      await createUserWithEmailAndPassword(auth, signupEmail.value, signupPassword.value);
+      // El usuario ya queda logueado automáticamente
+    } catch (err) {
+      console.error("Error al crear cuenta:", err);
+      loginError.textContent = err.message || "Error al crear cuenta";
+    } finally {
+      signupBtn.disabled = false;
+    }
+  });
+}
+
   const loginButton = document.getElementById("loginGoogle");
   const logoutButton = document.getElementById("logout");
   // Crear un span para mostrar el email del usuario

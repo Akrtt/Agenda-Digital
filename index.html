@@ -473,45 +473,8 @@
   // se actualicen (por ejemplo, al iniciar sesión), estas propiedades setearán
   // tus variables `let notas`, `let eventos`, etc., y luego llamarán a la función
   // `actualizarCalendarioUI` para que la interfaz se redibuje.
-  Object.defineProperty(window, 'userNotes', {
-    get: function() { return notas; },
-    set: function(val) { notas = val; if (window.actualizarCalendarioUI) window.actualizarCalendarioUI(); }
-  });
-  Object.defineProperty(window, 'userEvents', {
-    get: function() { return eventos; },
-    set: function(val) { eventos = val; if (window.actualizarCalendarioUI) window.actualizarCalendarioUI(); }
-  });
-  Object.defineProperty(window, 'userStickers', {
-    get: function() { return stickers; },
-    set: function(val) { stickers = val; if (window.actualizarCalendarioUI) window.actualizarCalendarioUI(); }
-  });
 
-  // ✨ Función para actualizar la UI completa después de cargar/cambiar datos ✨
-  // Esta función se exporta al objeto `window` para que el script `type="module"` pueda llamarla.
-  window.actualizarCalendarioUI = function() {
-    // Sincroniza las referencias a `db` y `currentUserData` desde el objeto `window`
-    db = window.db;
-    currentUserData = window.currentUserData;
 
-    // Si hay un mes visible actualmente, lo reconstruimos con los nuevos datos
-    if (mesVisible !== null) {
-      construirMes(mesVisible);
-    }
-    // Si no hay un mes visible (por ejemplo, justo al cargar la página),
-    // y el usuario está logueado, podemos abrir el mes actual por defecto.
-    else if (currentUserData) {
-       abrirCalendario(now.getMonth());
-    } else {
-       construirMes(now.getMonth());
-    }
-    actualizarSidePanel();
-  };
-
-  // Este listener garantiza que la UI se actualice una vez que el DOM esté completamente cargado.
-  // La verdadera "inicialización" de datos ocurre en `onAuthStateChanged` en el script tipo `module`.
-  document.addEventListener('DOMContentLoaded', () => {
-    window.actualizarCalendarioUI();
-  });
 
     let mesVisible = null;
     let diaActivo = null; // { mes, dia }
@@ -741,63 +704,70 @@
 
     // Side panel actions
     btnGuardarNota.addEventListener('click', ()=>{
-      if (!diaActivo) return;
-      const k = keyDay(diaActivo.mes, diaActivo.dia);
-      const val = notaTextarea.value.trim();
-      if (val) notas[k] = val; else delete notas[k];
-      localStorage.setItem(LS_NOTAS, JSON.stringify(notas));
-      // feedback suave
-      btnGuardarNota.textContent = 'Guardado ✓';
-      setTimeout(()=> btnGuardarNota.textContent = 'Guardar', 900);
+      (async () => {
+        if (!diaActivo) return;
+        const k = keyDay(diaActivo.mes, diaActivo.dia);
+        const val = notaTextarea.value.trim();
+        if (val) notas[k] = val; else delete notas[k];
+        await guardarDatosUsuarioEnFirestore('notas', notas);
+        btnGuardarNota.textContent = 'Guardado ✓';
+        setTimeout(()=> btnGuardarNota.textContent = 'Guardar', 900);
+      })();
     });
 
     btnBorrarNota.addEventListener('click', ()=>{
-      if (!diaActivo) return;
-      const k = keyDay(diaActivo.mes, diaActivo.dia);
-      delete notas[k];
-      localStorage.setItem(LS_NOTAS, JSON.stringify(notas));
-      notaTextarea.value = '';
+      (async () => {
+        if (!diaActivo) return;
+        const k = keyDay(diaActivo.mes, diaActivo.dia);
+        delete notas[k];
+        await guardarDatosUsuarioEnFirestore('notas', notas);
+        notaTextarea.value = '';
+      })();
     });
 
     btnToggleEvento.addEventListener('click', ()=>{
-      if (!diaActivo) return;
-      const {mes, dia} = diaActivo; const k = keyDay(mes, dia);
-      if (eventos[k]) delete eventos[k]; else eventos[k] = true;
-      localStorage.setItem(LS_EVENTOS, JSON.stringify(eventos));
-      construirMes(mes); // refresca chips
-      // Mantener selección
-      const cell = grid.querySelector(`[data-dia="${dia}"]`); if (cell) seleccionarDia(mes, dia, cell);
+      (async () => {
+        if (!diaActivo) return;
+        const {mes, dia} = diaActivo; const k = keyDay(mes, dia);
+        if (eventos[k]) delete eventos[k]; else eventos[k] = true;
+        await guardarDatosUsuarioEnFirestore('eventos', eventos);
+        construirMes(mes);
+        const cell = grid.querySelector(`[data-dia="${dia}"]`); if (cell) seleccionarDia(mes, dia, cell);
+      })();
     });
 
     btnToggleSticker.addEventListener('click', ()=>{
-      if (!diaActivo) return;
-      const {mes, dia} = diaActivo; const k = keyDay(mes, dia);
-      if (stickers[k]) delete stickers[k]; else stickers[k] = true;
-      localStorage.setItem(LS_STICKER, JSON.stringify(stickers));
-      construirMes(mes);
-      const cell = grid.querySelector(`[data-dia="${dia}"]`); if (cell) seleccionarDia(mes, dia, cell);
+      (async () => {
+        if (!diaActivo) return;
+        const {mes, dia} = diaActivo; const k = keyDay(mes, dia);
+        if (stickers[k]) delete stickers[k]; else stickers[k] = true;
+        await guardarDatosUsuarioEnFirestore('stickers', stickers);
+        construirMes(mes);
+        const cell = grid.querySelector(`[data-dia="${dia}"]`); if (cell) seleccionarDia(mes, dia, cell);
+      })();
     });
 
     function limpiarMesConfirm(){
-      if (mesVisible === null) return;
-      const ok = confirm('¿Seguro que quieres limpiar notas, eventos y stickers de este mes?');
-      if (!ok) return;
-      // Filtrar todas las claves que empiecen por `${mesVisible}-`
-      const filterKeys = (obj) => Object.keys(obj).reduce((acc, k)=> {
-        if (!k.startsWith(mesVisible + '-')) acc[k] = obj[k];
-        return acc;
-      }, {});
-      notas = filterKeys(notas);
-      eventos = filterKeys(eventos);
-      stickers = filterKeys(stickers);
-      localStorage.setItem(LS_NOTAS, JSON.stringify(notas));
-      localStorage.setItem(LS_EVENTOS, JSON.stringify(eventos));
-      localStorage.setItem(LS_STICKER, JSON.stringify(stickers));
-      construirMes(mesVisible);
-      // Reset panel
-      diaActivo = null;
-      sideTitulo.textContent = 'Día —';
-      notaTextarea.value = '';
+      (async () => {
+        if (mesVisible === null) return;
+        const ok = confirm('¿Seguro que quieres limpiar notas, eventos y stickers de este mes?');
+        if (!ok) return;
+        const newNotas = {};
+        for (const k in notas) { if (!k.startsWith(mesVisible + '-')) { newNotas[k] = notas[k]; } }
+        notas = newNotas;
+        const newEventos = {};
+        for (const k in eventos) { if (!k.startsWith(mesVisible + '-')) { newEventos[k] = eventos[k]; } }
+        eventos = newEventos;
+        const newStickers = {};
+        for (const k in stickers) { if (!k.startsWith(mesVisible + '-')) { newStickers[k] = stickers[k]; } }
+        stickers = newStickers;
+        await Promise.all([
+            guardarDatosUsuarioEnFirestore('notas', notas),
+            guardarDatosUsuarioEnFirestore('eventos', eventos),
+            guardarDatosUsuarioEnFirestore('stickers', stickers)
+        ]);
+        actualizarSidePanel();
+      })();
     }
 
     // Menú contextual para añadir/quitar evento/sticker + abrir nota modal
@@ -816,9 +786,9 @@
 
       const btnEvt = document.createElement('button');
       btnEvt.textContent = eventos[k] ? 'Quitar evento' : 'Añadir evento';
-      btnEvt.addEventListener('click', ()=>{
+      btnEvt.addEventListener('click', async ()=>{
         if (eventos[k]) delete eventos[k]; else eventos[k] = true;
-        localStorage.setItem(LS_EVENTOS, JSON.stringify(eventos));
+        await guardarDatosUsuarioEnFirestore('eventos', eventos);
         construirMes(mes);
         const c = grid.querySelector(`[data-dia="${dia}"]`); if (c) seleccionarDia(mes, dia, c);
         ocultarContext();
@@ -826,9 +796,9 @@
 
       const btnSt = document.createElement('button');
       btnSt.textContent = stickers[k] ? 'Quitar sticker' : 'Añadir sticker';
-      btnSt.addEventListener('click', ()=>{
+      btnSt.addEventListener('click', async ()=>{
         if (stickers[k]) delete stickers[k]; else stickers[k] = true;
-        localStorage.setItem(LS_STICKER, JSON.stringify(stickers));
+        await guardarDatosUsuarioEnFirestore('stickers', stickers);
         construirMes(mes);
         const c = grid.querySelector(`[data-dia="${dia}"]`); if (c) seleccionarDia(mes, dia, c);
         ocultarContext();
@@ -862,11 +832,10 @@
 
       node.querySelector('[data-close]').addEventListener('click', close);
       node.querySelector('[data-cancel]').addEventListener('click', close);
-      node.querySelector('[data-save]').addEventListener('click', ()=>{
+      node.querySelector('[data-save]').addEventListener('click', async ()=>{
         const val = txt.value.trim();
         if (val) notas[k] = val; else delete notas[k];
-        localStorage.setItem(LS_NOTAS, JSON.stringify(notas));
-        // sin necesidad de refrescar grid solo actualizamos side si coincide
+        await guardarDatosUsuarioEnFirestore('notas', notas);
         if (diaActivo && diaActivo.mes === mes && diaActivo.dia === dia){ notaTextarea.value = val; }
         close();
       });
@@ -935,9 +904,10 @@
   };
 
   // Inicializar Firebase
+
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
-  const db = getFirestore(app);
+  window.db = getFirestore(app);
 
   // 🔹 Ejemplo: Login con Google
   const provider = new GoogleAuthProvider();

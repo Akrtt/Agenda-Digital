@@ -885,6 +885,59 @@
   });
 
   // 🔹 Ejemplo: Guardar un evento en Firestore
+  // 🔹 Vigilante de autenticación: onAuthStateChanged
+  const loginButton = document.getElementById("loginGoogle");
+  const logoutButton = document.getElementById("logout");
+  // Crear un span para mostrar el email del usuario
+
+  // Crear contenedor para mostrar email y foto
+  const userDisplay = document.createElement('span');
+  userDisplay.style.display = 'flex';
+  userDisplay.style.alignItems = 'center';
+  userDisplay.style.marginLeft = '10px';
+  userDisplay.style.color = '#fff';
+  userDisplay.style.fontWeight = 'bold';
+  userDisplay.style.gap = '8px';
+  loginButton.parentNode.appendChild(userDisplay);
+
+  // Estado inicial: ocultar logout
+  // Estado inicial: ocultar logout y userDisplay
+  logoutButton.style.display = 'none';
+  userDisplay.style.display = 'none';
+
+  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      // Usuario logeado
+      console.log("Estado de autenticación: Usuario logeado:", user.email);
+      userDisplay.innerHTML = '';
+      // Foto de perfil si existe
+      if (user.photoURL) {
+        const img = document.createElement('img');
+        img.src = user.photoURL;
+        img.alt = 'Avatar';
+        img.style.width = '32px';
+        img.style.height = '32px';
+        img.style.borderRadius = '50%';
+        img.style.objectFit = 'cover';
+        userDisplay.appendChild(img);
+      }
+      // Email
+      const emailSpan = document.createElement('span');
+      emailSpan.textContent = user.email;
+      userDisplay.appendChild(emailSpan);
+      loginButton.style.display = 'none';
+      logoutButton.style.display = 'block';
+      userDisplay.style.display = 'flex';
+    } else {
+      // No logeado
+      console.log("Estado de autenticación: No hay usuario logeado.");
+      userDisplay.innerHTML = '';
+      loginButton.style.display = 'block';
+      logoutButton.style.display = 'none';
+      userDisplay.style.display = 'none';
+    }
+  });
   async function guardarEvento(uid, evento) {
     await addDoc(collection(db, "users", uid, "events"), evento);
     console.log("Evento guardado:", evento);

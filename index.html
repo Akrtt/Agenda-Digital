@@ -1008,15 +1008,7 @@ async function guardarDatosUsuarioEnFirestore(campo, valor) {
   window.firebaseFirestore.setDoc = setDoc;
   window.firebaseFirestore.updateDoc = updateDoc;
 
-  // Login modal button
-  const modalLoginBtn = document.getElementById("modalLoginGoogle");
-  const manualLoginForm = document.getElementById("manualLoginForm");
-  const manualLoginBtn = document.getElementById("manualLoginBtn");
-  const loginEmail = document.getElementById("loginEmail");
-  const loginPassword = document.getElementById("loginPassword");
-  const loginError = document.getElementById("loginError");
-  const loginModal = document.getElementById("loginModal");
-  const mainApp = document.getElementById("mainApp");
+
   if (modalLoginBtn) {
     modalLoginBtn.addEventListener("click", async () => {
       try {

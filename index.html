@@ -274,7 +274,82 @@
       .cal-header { padding: 8px 4px 4px 4px; }
       .side-panel { padding: 6px; }
     }
-  </style>
+  
+/* --- Calendar Visual Improvements (Google Calendar style) --- */
+.cal-dia {
+  background: #fff;
+  color: #222;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  display:flex; flex-direction:column;
+  padding: 6px;
+  position: relative;
+  cursor: pointer;
+  transition: box-shadow .15s, transform .15s;
+  overflow:hidden;
+}
+.cal-dia:hover { box-shadow: 0 4px 12px rgba(33,150,243,.2); transform: translateY(-2px); }
+.cal-dia.selected { border: 2px solid #2196f3; box-shadow: 0 0 0 3px rgba(33,150,243,.25); }
+.cal-dia-hoy { border: 2px solid #4cafef; box-shadow: 0 0 8px rgba(33,150,243,.35); }
+
+.cal-dia-num {
+  font-weight: 700;
+  font-size: .9rem;
+  margin-bottom: 2px;
+}
+.cal-preview {
+  font-size: .78rem;
+  color:#333;
+  white-space: nowrap;
+  overflow:hidden;
+  text-overflow: ellipsis;
+}
+.cal-markers {
+  position:absolute;
+  top:4px; right:4px;
+  display:flex; gap:4px;
+}
+.marker { width:8px; height:8px; border-radius:50%; }
+.marker.note { background:#2196f3; }
+.marker.event { background:#ff9800; }
+.marker.sticker { background:#fbc02d; }
+
+/* Modal para editar día */
+.day-modal-backdrop {
+  position: fixed;
+  inset:0;
+  background: rgba(0,0,0,.45);
+  backdrop-filter: blur(2px);
+  display:flex; align-items:center; justify-content:center;
+  z-index:5000;
+  animation: fadeIn .2s ease-out;
+}
+@keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+.day-modal {
+  background:#fff;
+  border-radius:14px;
+  padding:20px;
+  width:min(420px,90%);
+  box-shadow: 0 12px 42px rgba(0,0,0,.35);
+  display:flex; flex-direction:column; gap:12px;
+  animation: zoomIn .18s ease-out;
+}
+@keyframes zoomIn { from{transform:scale(.9); opacity:0;} to{transform:scale(1); opacity:1;} }
+.day-modal h3{ margin:0; font-size:1.2rem; }
+.day-modal textarea{
+  width:100%; min-height:80px;
+  border:1px solid #ccc; border-radius:8px;
+  padding:8px; resize:vertical; font-size:.95rem;
+}
+.day-modal .row{ display:flex; gap:8px; justify-content:flex-end; }
+.day-modal button{ padding:8px 14px; border:none; border-radius:8px; cursor:pointer; font-weight:700; }
+.day-save{ background:#2196f3; color:#fff; }
+.day-cancel{ background:#eee; }
+.day-toggle{ padding:6px 10px; border:1px solid #ddd; border-radius:6px; font-size:.85rem; background:#fafafa; cursor:pointer; }
+.day-toggle.active{ background:#2196f3; color:#fff; border-color:#2196f3; }
+
+</style>
 </head>
 
 <body>
@@ -490,18 +565,7 @@
         <div class="cal-grid-wrap">
           <div class="cal-grid" id="calGrid" role="grid" aria-readonly="true"></div>
         </div>
-        <aside class="side-panel" aria-live="polite">
-          <h3 id="sideTitulo">Día —</h3>
-          <textarea class="nota" id="notaDia" placeholder="Escribe una nota para este día..."></textarea>
-          <div class="row">
-            <button class="btn-guardar" id="btnGuardarNota">Guardar</button>
-            <button class="btn-borrar" id="btnBorrarNota">Borrar</button>
-          </div>
-          <div class="row">
-            <button class="tool-btn" id="btnToggleEvento">Añadir/Quitar evento</button>
-            <button class="tool-btn" id="btnToggleSticker">Añadir/Quitar sticker</button>
-          </div>
-        </aside>
+        
       </div>
 
       <button class="overlay-back" id="btnVolverIndice" title="Volver al índice" aria-label="Volver al índice">&#x2B05; Volver</button>
@@ -1006,6 +1070,76 @@ async function guardarDatosUsuarioEnFirestore(campo, valor) {
       document.addEventListener('keydown', keyHandler);
     }
 
+    
+    // === MODERNIZED CALENDAR DAY HANDLING ===
+    function construirMes(mes){
+      const anyo = ANYO;
+      const primerDia = new Date(anyo, mes, 1).getDay();
+      const diasEnMes = new Date(anyo, mes + 1, 0).getDate();
+      calTitulo.textContent = `${mesesN[mes].toUpperCase()} ${anyo}`;
+      grid.style.opacity = 0;
+      setTimeout(()=>{
+        let frag = document.createDocumentFragment();
+        diasCorto.forEach(d => {
+          const h = document.createElement('div');
+          h.className = 'cal-dia-header';
+          h.textContent = d;
+          frag.appendChild(h);
+        });
+        for (let i=0;i<primerDia;i++){ frag.appendChild(document.createElement('div')); }
+        for (let d=1; d<=diasEnMes; d++){
+          const cell = document.createElement('div');
+          cell.className = 'cal-dia';
+          cell.dataset.dia = d;
+          const num = document.createElement('div');
+          num.className='cal-dia-num'; num.textContent=d;
+          cell.appendChild(num);
+          const k=keyDay(mes,d);
+          const markers=document.createElement('div'); markers.className='cal-markers';
+          if(notas[k]){ markers.innerHTML += '<div class="marker note"></div>'; 
+            const prev=document.createElement('div'); prev.className='cal-preview'; prev.textContent=notas[k]; cell.appendChild(prev); }
+          if(eventos[k]) markers.innerHTML += '<div class="marker event"></div>';
+          if(stickers[k]) markers.innerHTML += '<div class="marker sticker"></div>';
+          if(markers.childNodes.length>0) cell.appendChild(markers);
+          if(mes===now.getMonth() && d===now.getDate()) cell.classList.add('cal-dia-hoy');
+          cell.addEventListener('click',()=> abrirDayModal(mes,d));
+          frag.appendChild(cell);
+        }
+        grid.innerHTML=''; grid.appendChild(frag); grid.style.opacity=1;
+      },150);
+    }
+
+    function abrirDayModal(mes,dia){
+      const tpl=document.getElementById('tplDayModal');
+      const node=tpl.content.firstElementChild.cloneNode(true);
+      const k=keyDay(mes,dia);
+      node.querySelector('#modalDayTitle').textContent=`${dia} de ${mesesN[mes]}`;
+      const txt=node.querySelector('#modalNote');
+      txt.value=notas[k]||'';
+      const btnEvent=node.querySelector('#toggleEvent');
+      const btnSticker=node.querySelector('#toggleSticker');
+      if(eventos[k]) btnEvent.classList.add('active');
+      if(stickers[k]) btnSticker.classList.add('active');
+      btnEvent.addEventListener('click',()=> btnEvent.classList.toggle('active'));
+      btnSticker.addEventListener('click',()=> btnSticker.classList.toggle('active'));
+      node.querySelector('#saveDayBtn').addEventListener('click',async ()=>{
+        const val=txt.value.trim();
+        if(val) notas[k]=val; else delete notas[k];
+        if(btnEvent.classList.contains('active')) eventos[k]=true; else delete eventos[k];
+        if(btnSticker.classList.contains('active')) stickers[k]=true; else delete stickers[k];
+        await Promise.all([
+          guardarDatosUsuarioEnFirestore('notas',notas),
+          guardarDatosUsuarioEnFirestore('eventos',eventos),
+          guardarDatosUsuarioEnFirestore('stickers',stickers)
+        ]);
+        node.remove();
+        construirMes(mes);
+      });
+      node.querySelectorAll('[data-close]').forEach(el=>el.addEventListener('click',()=> node.remove()));
+      document.body.appendChild(node);
+      txt.focus();
+    }
+
     // =============================================================
     // TEMAS POR MES (fondos gradiente distintas estaciones)
     // =============================================================
@@ -1037,6 +1171,24 @@ async function guardarDatosUsuarioEnFirestore(campo, valor) {
     // Abre mes actual al cargar si quieres (comentado por defecto)
     // abrirCalendario(now.getMonth());
   </script>
+
+  <template id="tplDayModal">
+    <div class="day-modal-backdrop" data-close>
+      <div class="day-modal" role="dialog" aria-modal="true">
+        <h3 id="modalDayTitle">Editar día</h3>
+        <textarea id="modalNote" placeholder="Escribe tu nota..."></textarea>
+        <div>
+          <button id="toggleEvent" class="day-toggle">Evento</button>
+          <button id="toggleSticker" class="day-toggle">⭐ Sticker</button>
+        </div>
+        <div class="row">
+          <button class="day-cancel" data-close>Cancelar</button>
+          <button class="day-save" id="saveDayBtn">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
 </body>
 
 <!-- Botones de ejemplo para login/logout -->

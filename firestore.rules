@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Reglas para la colección 'users'
+    // Esto permite que un usuario autenticado solo lea y escriba en su propio documento
+    match /users/{userId} {
+      allow read, write: if request.auth.uid == userId;
+    }
+  }
+}

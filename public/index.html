@@ -454,12 +454,11 @@
     // Inicializa Firebase
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
-    const db = firebase.firestore();
     const messaging = firebase.messaging();
 
     // 1. Registrar el Service Worker de FCM
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/firebase-messaging-sw.js')
+navigator.serviceWorker.register('/Agenda-Digital/firebase-messaging-sw.js')
         .then((registration) => {
             console.log('Service Worker registrado con éxito:', registration);
             requestPermissionAndGetToken();
@@ -1055,6 +1054,24 @@
     const authCompat = firebase.auth();
     const dbCompat = firebase.firestore();
     const messagingCompat = firebase.messaging();
+    <script>
+// --- Unificación de lógica Firebase (solo compat SDK) ---
+// ...
+
+// --- ¡NUEVA UBICACIÓN PARA LA DECLARACIÓN DE window.firebaseFirestore! ---
+window.firebaseFirestore = {
+  doc: null,
+  getDoc: null,
+  setDoc: null,
+  updateDoc: null
+};
+// --- FIN NUEVA UBICACIÓN ---
+
+// Exporta funciones de Firestore compat para el resto del código
+window.firebaseFirestore.doc = function(db, ...args) { return db.collection(args[0]).doc(args[1]); };
+window.firebaseFirestore.getDoc = async function(docRef) { return await docRef.get(); };
+// ... (el resto de las asignaciones y tu código de login/sincronización)
+
 
     // Exporta instancias para el resto del código
     window.db = dbCompat;

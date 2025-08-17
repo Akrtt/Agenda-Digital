@@ -275,49 +275,41 @@
       .side-panel { padding: 6px; }
     }
   
-/* === PRO Calendar upgrades (non-breaking) === */
-.cal-dia { position: relative; }
-.cal-dia.cal-has-note { background: linear-gradient(180deg, rgba(33,150,243,0.06), transparent 55%); }
-.cal-dia.cal-has-event { box-shadow: inset 0 0 0 2px rgba(255,152,0,.35); }
-.cal-dia.cal-has-sticker { background-image: radial-gradient(circle at 92% 10%, rgba(251,192,45,.35), transparent 35%); }
+/* ====== CALENDAR PRO (Mes/Semana/Día + horarios + notifs) ====== */
+.calpro-bar{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin:8px 6px 0; }
+.calpro-btn{ border:1px solid #e5e7eb; background:#fff; padding:6px 10px; border-radius:10px; font-weight:700; cursor:pointer; }
+.calpro-btn.active{ background:#111; color:#fff; border-color:#111; }
+.calpro-left,.calpro-right{ display:flex; gap:6px; align-items:center; }
+.calpro-badge{ font-size:.78rem; padding:.5px 6px; border-radius: 999px; background:#eef2ff; border:1px solid #e0e7ff; color:#1e40af; }
 
-.cal-preview {
-  margin-top: 4px;
-  font-size: .78rem;
-  color: #2c3e50;
-  display: block;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.cal-markers { position:absolute; top:4px; right:6px; display:flex; gap:6px; }
-.cal-dot { width:8px; height:8px; border-radius:50%; }
-.cal-dot.note { background:#2196f3; }
-.cal-dot.event { background:#ff9800; }
-.cal-dot.sticker { background:#fbc02d; }
-.cal-count { 
-  position:absolute; bottom:4px; right:6px; 
-  font-size:.68rem; background:#111; color:#fff;
-  padding:1px 6px; border-radius:8px; opacity:.82;
-}
+/* Semana/Día grid */
+#calGrid.calpro-week, #calGrid.calpro-day{ display:grid; }
+#calGrid.calpro-week{ grid-template-columns: 72px repeat(7, 1fr); }
+#calGrid.calpro-day{ grid-template-columns: 72px 1fr; }
+.calpro-hour{ border-top:1px dashed #e5e7eb; min-height:44px; position:relative; font-size:.78rem; }
+.calpro-hour-label{ position:sticky; left:0; font-weight:700; color:#6b7280; padding:6px 4px; }
+.calpro-slot{ border-top:1px dashed #f1f5f9; min-height:44px; position:relative; cursor: pointer; }
+.calpro-event{ position:absolute; left:6px; right:6px; border-radius:10px; border:1px solid #c7d2fe; background:#eef2ff; padding:6px 8px; font-size:.82rem; overflow:hidden; }
+.calpro-event.dragging{ opacity:.6; }
+.calpro-colhead{ font-weight:800; padding:8px; border-bottom:1px solid #e5e7eb; background:#fafafa; position:sticky; top:0; z-index:1; }
+.calpro-today{ background: linear-gradient(180deg, rgba(34,197,94,0.08), transparent 60%); }
+.calpro-now{ position:absolute; left:0; right:0; height:2px; background:#ef4444; box-shadow: 0 0 0 1px #ef4444; pointer-events:none; }
+.calpro-now-dot{ position:absolute; left:-4px; top:-3px; width:8px; height:8px; border-radius:50%; background:#ef4444; }
+.calpro-mini{ margin-top:8px; font-size:.84rem; color:#4b5563; }
 
-.chip.chip-event { background:#fff3e0; color:#d35400; border:1px solid #ffd8a6; }
-.chip.chip-sticker { background:#fff8e1; color:#8d6e63; border:1px solid #ffe7a1; }
-.cal-dia-num { font-weight: 700; }
+/* Modal editor de eventos */
 
-/* Quick editor modal */
-.qe-backdrop { position: fixed; inset:0; background: rgba(16,18,27,.45); backdrop-filter: blur(2px); display:flex; align-items:center; justify-content:center; z-index: 9999; }
-.qe-modal { width: min(560px, 92vw); background:#fff; border-radius:14px; border:1px solid #e8eaef; box-shadow: 0 20px 60px rgba(0,0,0,.18); padding:16px; }
-.qe-title { font-weight:800; margin-bottom:8px; }
-.qe-row { display:flex; gap:10px; align-items:center; margin-top:8px; }
-.qe-row > * { flex:1; }
-.qe-note { min-height: 96px; resize: vertical; padding:10px; border:1px solid #dfe3ea; border-radius:10px; }
-.qe-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:14px; }
-.qe-btn { padding:8px 12px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; font-weight:700; }
-.qe-btn.primary { background:#2196f3; border-color:#2196f3; color:#fff; }
-.qe-toggle { display:flex; gap:8px; align-items:center; }
-.qe-toggle input { transform: scale(1.2); }
+#eventEditorBackdrop{ position: fixed; inset:0; background: rgba(16,18,27,.45); backdrop-filter: blur(2px); display:flex; align-items:center; justify-content:center; z-index:9999; }
+#eventEditor{ width:min(640px, 95vw); background:#fff; border-radius:16px; border:1px solid #e5e7eb; box-shadow: 0 20px 60px rgba(0,0,0,.18); padding:16px; }
+#eventEditor h3{ margin:0 0 6px 0; font-size:1.1rem; }
+.ee-row{ display:flex; gap:10px; margin-top:8px; }
+.ee-row > label{ display:flex; flex-direction:column; gap:4px; flex:1; font-size:.9rem; }
+.ee-row input, .ee-row textarea{ border:1px solid #dfe3ea; border-radius:10px; padding:8px; }
+.ee-actions{ display:flex; justify-content:space-between; gap:8px; margin-top:12px; }
+.ee-actions-right{ display:flex; gap:8px; }
+.ee-btn{ padding:8px 12px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; font-weight:700; }
+.ee-btn.primary{ background:#111; color:#fff; border-color:#111; }
+
 
 </style>
 </head>
@@ -531,7 +523,21 @@
         </div>
       </div>
 
-      <div class="cal-main">
+      
+<div class="calpro-bar" id="calProBar" role="toolbar" aria-label="Controles de calendario">
+  <div class="calpro-left">
+    <button class="calpro-btn" id="btnModeMes" aria-pressed="true">Mes</button>
+    <button class="calpro-btn" id="btnModeSemana">Semana</button>
+    <button class="calpro-btn" id="btnModeDia">Día</button>
+  </div>
+  <div class="calpro-right">
+    <span class="calpro-badge" id="calProInfo"></span>
+    <button class="calpro-btn" id="btnPrev" title="Anterior">◀</button>
+    <button class="calpro-btn" id="btnNext" title="Siguiente">▶</button>
+    <button class="calpro-btn" id="btnNotif" title="Activar notificaciones">🔔</button>
+  </div>
+</div>
+<div class="cal-main">
         <div class="cal-grid-wrap">
           <div class="cal-grid" id="calGrid" role="grid" aria-readonly="true"></div>
         </div>
@@ -601,6 +607,7 @@ window.firebaseFirestore = {
 let notas = {};
 let eventos = {};
 let stickers = {};
+let eventosPro = {}; // eventos detallados (titulo, horaInicio, horaFin, nota)
 
 // Referencias a las instancias de Firebase (se inicializan al llamar actualizarCalendarioUI)
 // Función clave para las operaciones de calendario
@@ -624,6 +631,11 @@ Object.defineProperty(window, 'userNotes', {
 Object.defineProperty(window, 'userEvents', {
     get: function() { return eventos; },
     set: function(val) { eventos = val; window.actualizarCalendarioUI(); }
+});
+
+Object.defineProperty(window, 'userEventsPro', {
+    get: function() { return eventosPro; },
+    set: function(val) { eventosPro = val || {}; window.actualizarCalendarioUI(); }
 });
 Object.defineProperty(window, 'userStickers', {
     get: function() { return stickers; },
@@ -855,33 +867,7 @@ async function guardarDatosUsuarioEnFirestore(campo, valor) {
             cell.appendChild(chip);
           }
 
-          
-          // === Pro: preview & markers ===
-          (function(){
-            const markers = document.createElement('div'); markers.className = 'cal-markers';
-            let has = false;
-            if (notas[k]){
-              const prev = document.createElement('div');
-              prev.className = 'cal-preview';
-              prev.textContent = String(notas[k]).split('\n')[0];
-              prev.title = String(notas[k]);
-              cell.appendChild(prev);
-              const dot = document.createElement('div'); dot.className='cal-dot note'; markers.appendChild(dot);
-              cell.classList.add('cal-has-note'); has = true;
-            }
-            if (eventos[k]){ const dot = document.createElement('div'); dot.className='cal-dot event'; markers.appendChild(dot); cell.classList.add('cal-has-event'); has = true; }
-            if (stickers[k]){ const dot = document.createElement('div'); dot.className='cal-dot sticker'; markers.appendChild(dot); cell.classList.add('cal-has-sticker'); has = true; }
-            if (has) cell.appendChild(markers);
-            const count = (notas[k]?1:0) + (eventos[k]?1:0) + (stickers[k]?1:0);
-            if (count>1){ const badge=document.createElement('div'); badge.className='cal-count'; badge.textContent='+'+(count-1); cell.appendChild(badge); }
-          })();
-          // === end Pro ===
-
-          // Dblclick → Quick Editor (sin romper seleccionarDia)
-          cell.addEventListener('dblclick', (e)=>{
-            e.preventDefault(); abrirQuickEditor(mes, d, cell);
-          });
-// Listeners
+          // Listeners
           cell.addEventListener('click', ()=> seleccionarDia(mes, d, cell));
           cell.addEventListener('keydown', (e)=>{
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); seleccionarDia(mes, d, cell); }
@@ -1108,71 +1094,487 @@ async function guardarDatosUsuarioEnFirestore(campo, valor) {
     // Abre mes actual al cargar si quieres (comentado por defecto)
     // abrirCalendario(now.getMonth());
   
-// === Quick Editor logic (non-breaking) ===
-function abrirQuickEditor(mes, dia, cell){
-  const tpl = document.getElementById('tplQuickEditor');
-  if (!tpl) return;
-  const node = tpl.content.firstElementChild.cloneNode(true);
-  const k = keyDay(mes, dia);
-  const fecha = `${dia} de ${mesesN[mes]}`;
-  node.querySelector('#qeFecha').textContent = fecha;
-  const input = node.querySelector('#qeNota');
-  const cbEvt = node.querySelector('#qeEvento');
-  const cbSt = node.querySelector('#qeSticker');
-  input.value = (notas[k]||'');
-  cbEvt.checked = !!eventos[k];
-  cbSt.checked = !!stickers[k];
 
-  function cerrar(){ node.remove(); }
+// =============== CALENDAR PRO: vistas y eventos por hora ===============
+(function(){
+  // Estado
+  let proMode = 'mes'; // 'mes' | 'semana' | 'dia'
+  let fechaFocal = new Date();
+  const grid = document.getElementById('calGrid');
+  const calTitulo = document.getElementById('calTitulo');
+  const info = document.getElementById('calProInfo');
 
-  node.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', cerrar));
-  node.addEventListener('click', (e)=>{ if (e.target && e.target.hasAttribute('data-close')) cerrar(); });
-  document.addEventListener('keydown', onKey);
-  function onKey(e){ if (e.key==='Escape'){ cerrar(); document.removeEventListener('keydown', onKey); } }
+  // Helpers de fecha
+  function fmt2(n){ return String(n).padStart(2,'0'); }
+  function keyFromDate(dt){ return (dt.getMonth()) + '-' + dt.getDate(); } // usa el mismo formato que keyDay
+  function mondayOf(d){
+    const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const day = dt.getDay(); // 0 dom ... 6 sab
+    const diff = (day === 0 ? -6 : 1 - day); // llevar a lunes
+    dt.setDate(dt.getDate() + diff);
+    return dt;
+  }
+  function addDays(d, n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 
-  node.querySelector('#qeGuardar').addEventListener('click', async ()=>{
-    const nota = input.value.trim();
-    if (nota) notas[k] = nota; else delete notas[k];
-    if (cbEvt.checked) eventos[k] = true; else delete eventos[k];
-    if (cbSt.checked) stickers[k] = true; else delete stickers[k];
+  // ===== Toolbar handlers =====
+  const btnMes = document.getElementById('btnModeMes');
+  const btnSem = document.getElementById('btnModeSemana');
+  const btnDia = document.getElementById('btnModeDia');
+  const btnPrev = document.getElementById('btnPrev');
+  const btnNext = document.getElementById('btnNext');
+  const btnNotif = document.getElementById('btnNotif');
 
-    try {
+  function updateToolbar(){
+    [btnMes,btnSem,btnDia].forEach(b=>b.classList.remove('active'));
+    if (proMode==='mes') btnMes.classList.add('active');
+    if (proMode==='semana') btnSem.classList.add('active');
+    if (proMode==='dia') btnDia.classList.add('active');
+  }
+
+  function setMode(mode){
+    proMode = mode;
+    updateToolbar();
+    if (mode==='mes'){
+      grid.classList.remove('calpro-week','calpro-day');
+      construirMes(mesVisible);
+    } else if (mode==='semana'){
+      renderSemana();
+    } else {
+      renderDia();
+    }
+  }
+  btnMes?.addEventListener('click', ()=> setMode('mes'));
+  btnSem?.addEventListener('click', ()=> setMode('semana'));
+  btnDia?.addEventListener('click', ()=> setMode('dia'));
+
+  btnPrev?.addEventListener('click', ()=>{
+    if (proMode==='mes'){ mesVisible = (mesVisible + 11) % 12; construirMes(mesVisible); }
+    else if (proMode==='semana'){ fechaFocal = addDays(fechaFocal, -7); renderSemana(); }
+    else { fechaFocal = addDays(fechaFocal, -1); renderDia(); }
+  });
+  btnNext?.addEventListener('click', ()=>{
+    if (proMode==='mes'){ mesVisible = (mesVisible + 1) % 12; construirMes(mesVisible); }
+    else if (proMode==='semana'){ fechaFocal = addDays(fechaFocal, 7); renderSemana(); }
+    else { fechaFocal = addDays(fechaFocal, 1); renderDia(); }
+  });
+
+  // ===== Editor de eventos (crear/editar) =====
+  function abrirEditorEvento(fechaISO, evtIndex){
+    const tpl = document.getElementById('tplEventEditor'); if (!tpl) return;
+    const node = tpl.content.firstElementChild.cloneNode(true);
+    const el = node.querySelector('#eventEditor');
+    const inputTitulo = node.querySelector('#eeTitulo');
+    const inputFecha  = node.querySelector('#eeFecha');
+    const inputIni    = node.querySelector('#eeInicio');
+    const inputFin    = node.querySelector('#eeFin');
+    const inputNota   = node.querySelector('#eeNota');
+    const btnEliminar = node.querySelector('#eeEliminar');
+    const btnGuardar  = node.querySelector('#eeGuardar');
+
+    inputFecha.value = fechaISO;
+
+    const dt = new Date(fechaISO + 'T00:00');
+    const k = keyFromDate(dt);
+    const arr = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
+
+    let modo = 'nuevo';
+    if (typeof evtIndex === 'number' && arr[evtIndex]){
+      modo = 'editar';
+      const e = arr[evtIndex];
+      inputTitulo.value = e.titulo || '';
+      inputIni.value = e.inicio || '09:00';
+      inputFin.value = e.fin || '10:00';
+      inputNota.value = e.nota || '';
+      btnEliminar.style.display = '';
+      document.getElementById('eeTitle').textContent = 'Editar evento';
+    } else {
+      // por defecto, si se abrió sobre una hora, respetamos esa hora en inputIni
+    }
+
+    function cerrar(){
+      node.remove();
+      document.removeEventListener('keydown', onKey);
+    }
+    node.addEventListener('click', (e)=>{ if (e.target && e.target.hasAttribute('data-close')) cerrar(); });
+    function onKey(e){ if (e.key==='Escape'){ cerrar(); } }
+    document.addEventListener('keydown', onKey);
+
+    btnEliminar.addEventListener('click', async ()=>{
+      const list = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
+      if (typeof evtIndex === 'number' && list[evtIndex]){
+        list.splice(evtIndex, 1);
+        eventosPro[k] = list;
+        // mantener el mapa booleano legacy en sincronía
+        if (!list.length) delete eventos[k]; else eventos[k] = true;
+        await Promise.all([
+          guardarDatosUsuarioEnFirestore('eventosPro', eventosPro),
+          guardarDatosUsuarioEnFirestore('eventos', eventos)
+        ]);
+        refrescar();
+        cerrar();
+      }
+    });
+
+    btnGuardar.addEventListener('click', async ()=>{
+      const titulo = inputTitulo.value.trim() || 'Evento';
+      const inicio = inputIni.value || '09:00';
+      const fin = inputFin.value || '10:00';
+      const nota = inputNota.value.trim();
+      const e = { titulo, inicio, fin, nota };
+      const list = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
+      if (modo==='editar' && typeof evtIndex==='number' && list[evtIndex]){
+        list[evtIndex] = e;
+      } else {
+        list.push(e);
+      }
+      eventosPro[k] = list;
+      eventos[k] = true; // legacy marker para que otras partes sigan viendo que hay evento
       await Promise.all([
-        guardarDatosUsuarioEnFirestore('notas', notas),
-        guardarDatosUsuarioEnFirestore('eventos', eventos),
-        guardarDatosUsuarioEnFirestore('stickers', stickers),
+        guardarDatosUsuarioEnFirestore('eventosPro', eventosPro),
+        guardarDatosUsuarioEnFirestore('eventos', eventos)
       ]);
-    } catch(e){ console.warn(e); }
+      refrescar();
+      cerrar();
+    });
 
-    // Refrescar UI sin romper flujos
-    construirMes(mes);
-    seleccionarDia(mes, dia, cell);
-    cerrar();
-    document.removeEventListener('keydown', onKey);
+    // Ctrl/Cmd+Enter guarda
+    inputNota.addEventListener('keydown', (e)=>{ if ((e.ctrlKey||e.metaKey) && e.key==='Enter'){ btnGuardar.click(); } });
+
+    document.body.appendChild(node);
+  }
+
+  // ===== Render Semana/Día =====
+  function renderSemana(){
+    grid.className = grid.className.replace('calpro-day','').replace('calpro-week','').trim();
+    grid.classList.add('calpro-week');
+    // construir cabeceras
+    const mon = mondayOf(fechaFocal);
+    calTitulo.textContent = 'Semana de ' + mon.toLocaleDateString(undefined,{day:'2-digit',month:'short'});
+    info.textContent = '';
+    grid.innerHTML = '';
+
+    // fila de cabeceras
+    const headTime = document.createElement('div'); headTime.className='calpro-colhead'; headTime.textContent='';
+    grid.appendChild(headTime);
+    for(let i=0;i<7;i++){
+      const d = addDays(mon,i);
+      const h = document.createElement('div'); h.className='calpro-colhead';
+      h.textContent = d.toLocaleDateString(undefined, { weekday:'short', day:'2-digit', month:'short' });
+      if (isToday(d)) h.classList.add('calpro-today');
+      grid.appendChild(h);
+    }
+
+    // 24 filas
+    for(let hour=0; hour<24; hour++){
+      const lbl = document.createElement('div'); lbl.className='calpro-hour calpro-hour-label'; lbl.textContent = fmt2(hour)+':00';
+      grid.appendChild(lbl);
+
+      for(let i=0;i<7;i++){
+        const d = addDays(mon,i);
+        const k = keyFromDate(d);
+        const slot = document.createElement('div'); slot.className='calpro-slot calpro-hour';
+        slot.dataset.date = toISODate(d);
+        slot.dataset.hour = String(hour);
+
+        slot.addEventListener('click', ()=>{
+          const iso = slot.dataset.date;
+          abrirEditorEvento(iso);
+        });
+
+        // Render eventos de este día que caen en esta franja
+        const list = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
+        list.forEach((ev, idx)=>{
+          const [hIni,mIni] = (ev.inicio||'09:00').split(':').map(Number);
+          const [hFin,mFin] = (ev.fin||'10:00').split(':').map(Number);
+          if (hIni<=hour && hour<=hFin){
+            // Solo pintamos una vez por hora (primer slot donde aparece el bloque)
+            if (hour===hIni){
+              const durMin = (hFin*60+mFin) - (hIni*60+mIni);
+              const top = (mIni/60)*44; // px dentro del slot
+              const height = Math.max(22, (durMin/60)*44);
+              const evDiv = document.createElement('div'); evDiv.className='calpro-event';
+              evDiv.style.top = top+'px'; evDiv.style.height = height+'px';
+              evDiv.draggable = true;
+              evDiv.textContent = ev.titulo || 'Evento';
+
+              evDiv.addEventListener('dragstart', (e)=>{
+                evDiv.classList.add('dragging');
+                e.dataTransfer.setData('text/plain', JSON.stringify({date: toISODate(d), idx}));
+              });
+              evDiv.addEventListener('dragend', ()=> evDiv.classList.remove('dragging'));
+
+              slot.appendChild(evDiv);
+            }
+          }
+        });
+
+        // Drop para mover eventos
+        slot.addEventListener('dragover', (e)=> e.preventDefault());
+        slot.addEventListener('drop', async (e)=>{
+          e.preventDefault();
+          try{
+            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+            const fromKey = keyFromISO(data.date);
+            const toDateISO = slot.dataset.date;
+            const toKey = keyFromISO(toDateISO);
+            const hour = Number(slot.dataset.hour);
+            const list = Array.isArray(eventosPro[fromKey]) ? eventosPro[fromKey] : [];
+            const ev = list.splice(data.idx,1)[0];
+            if (ev){
+              // mover manteniendo duración
+              const [hIni,mIni] = (ev.inicio||'09:00').split(':').map(Number);
+              const [hFin,mFin] = (ev.fin||'10:00').split(':').map(Number);
+              const dur = (hFin*60+mFin) - (hIni*60+mIni);
+              ev.inicio = fmt2(hour)+':'+fmt2(mIni);
+              const finMin = hour*60 + mIni + dur;
+              const nh = Math.floor(finMin/60), nm = finMin%60;
+              ev.fin = fmt2(nh)+':'+fmt2(nm);
+              const toList = Array.isArray(eventosPro[toKey]) ? eventosPro[toKey] : [];
+              toList.push(ev);
+              eventosPro[toKey] = toList;
+              if (!list.length) delete eventosPro[fromKey];
+              eventos[fromKey] = (Array.isArray(eventosPro[fromKey]) && eventosPro[fromKey].length) || false;
+              eventos[toKey] = true;
+              await Promise.all([
+                guardarDatosUsuarioEnFirestore('eventosPro', eventosPro),
+                guardarDatosUsuarioEnFirestore('eventos', eventos)
+              ]);
+              renderSemana();
+            }
+          }catch(err){ console.warn(err); }
+        });
+
+        grid.appendChild(slot);
+      }
+    }
+
+    // ahora la línea de "ahora" para cada día (si la semana incluye hoy)
+    const now = new Date();
+    if (now >= mon && now <= addDays(mon,6)){
+      const h = now.getHours();
+      const m = now.getMinutes();
+      // buscar la celda del día de hoy y hora actual
+      const col = (now.getDay()===0?7:now.getDay()); // 1..7
+      const rowIndex = 1 /*header*/ + 1 /*primer hora*/ + h;
+      const nodeIndex = rowIndex*(8) + col; // 8 columnas: label + 7 días
+      const slot = grid.children[nodeIndex];
+      if (slot && slot.classList.contains('calpro-slot')){
+        const line = document.createElement('div'); line.className='calpro-now';
+        const dot = document.createElement('div'); dot.className='calpro-now-dot';
+        line.appendChild(dot);
+        line.style.top = ( (m/60)*44 )+'px';
+        slot.appendChild(line);
+      }
+    }
+  }
+
+  function renderDia(){
+    grid.className = grid.className.replace('calpro-week','').replace('calpro-day','').trim();
+    grid.classList.add('calpro-day');
+    const d = fechaFocal;
+    calTitulo.textContent = d.toLocaleDateString(undefined, { weekday:'long', day:'2-digit', month:'long' });
+    info.textContent = 'Vista día';
+    grid.innerHTML = '';
+
+    const headTime = document.createElement('div'); headTime.className='calpro-colhead'; headTime.textContent='';
+    const headDay = document.createElement('div'); headDay.className='calpro-colhead'; headDay.textContent=d.toLocaleDateString(undefined,{weekday:'short', day:'2-digit', month:'short'});
+    if (isToday(d)) headDay.classList.add('calpro-today');
+    grid.appendChild(headTime); grid.appendChild(headDay);
+
+    const k = keyFromDate(d);
+    const list = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
+
+    for(let hour=0; hour<24; hour++){
+      const lbl = document.createElement('div'); lbl.className='calpro-hour calpro-hour-label'; lbl.textContent = fmt2(hour)+':00';
+      grid.appendChild(lbl);
+
+      const slot = document.createElement('div'); slot.className='calpro-slot calpro-hour';
+      slot.dataset.date = toISODate(d);
+      slot.dataset.hour = String(hour);
+      slot.addEventListener('click', ()=> abrirEditorEvento(slot.dataset.date));
+
+      // eventos
+      list.forEach((ev, idx)=>{
+        const [hIni,mIni] = (ev.inicio||'09:00').split(':').map(Number);
+        const [hFin,mFin] = (ev.fin||'10:00').split(':').map(Number);
+        if (hIni<=hour && hour<=hFin && hour===hIni){
+          const durMin = (hFin*60+mFin) - (hIni*60+mIni);
+          const top = (mIni/60)*44; const height = Math.max(22, (durMin/60)*44);
+          const evDiv = document.createElement('div'); evDiv.className='calpro-event';
+          evDiv.style.top = top+'px'; evDiv.style.height = height+'px';
+          evDiv.draggable = true; evDiv.textContent = ev.titulo || 'Evento';
+          evDiv.addEventListener('dragstart', (e)=>{
+            evDiv.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', JSON.stringify({date: toISODate(d), idx}));
+          });
+          evDiv.addEventListener('dragend', ()=> evDiv.classList.remove('dragging'));
+          slot.appendChild(evDiv);
+        }
+      });
+
+      slot.addEventListener('dragover', (e)=> e.preventDefault());
+      slot.addEventListener('drop', async (e)=>{
+        e.preventDefault();
+        try{
+          const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+          const fromKey = keyFromISO(data.date);
+          const toKey = keyFromISO(slot.dataset.date);
+          const hour = Number(slot.dataset.hour);
+          const list = Array.isArray(eventosPro[fromKey]) ? eventosPro[fromKey] : [];
+          const ev = list.splice(data.idx,1)[0];
+          if (ev){
+            const [hIni,mIni] = (ev.inicio||'09:00').split(':').map(Number);
+            const [hFin,mFin] = (ev.fin||'10:00').split(':').map(Number);
+            const dur = (hFin*60+mFin) - (hIni*60+mIni);
+            ev.inicio = fmt2(hour)+':'+fmt2(mIni);
+            const finMin = hour*60 + mIni + dur;
+            const nh = Math.floor(finMin/60), nm = finMin%60;
+            ev.fin = fmt2(nh)+':'+fmt2(nm);
+            const toList = Array.isArray(eventosPro[toKey]) ? eventosPro[toKey] : [];
+            toList.push(ev);
+            eventosPro[toKey] = toList;
+            if (!list.length) delete eventosPro[fromKey];
+            eventos[fromKey] = (Array.isArray(eventosPro[fromKey]) && eventosPro[fromKey].length) || false;
+            eventos[toKey] = true;
+            await Promise.all([
+              guardarDatosUsuarioEnFirestore('eventosPro', eventosPro),
+              guardarDatosUsuarioEnFirestore('eventos', eventos)
+            ]);
+            renderDia();
+          }
+        }catch(err){ console.warn(err); }
+      });
+
+      grid.appendChild(slot);
+    }
+
+    // línea de ahora
+    if (isToday(d)){
+      const now = new Date();
+      const h = now.getHours(), m = now.getMinutes();
+      const rowIndex = 1 + 1 + h;
+      const nodeIndex = rowIndex*2 + 1;
+      const slot = grid.children[nodeIndex];
+      if (slot && slot.classList.contains('calpro-slot')){
+        const line = document.createElement('div'); line.className='calpro-now';
+        const dot = document.createElement('div'); dot.className='calpro-now-dot';
+        line.appendChild(dot);
+        line.style.top = ( (m/60)*44 )+'px';
+        slot.appendChild(line);
+      }
+    }
+  }
+
+  function toISODate(d){ return d.getFullYear()+'-'+fmt2(d.getMonth()+1)+'-'+fmt2(d.getDate()); }
+  function keyFromISO(iso){
+    const [Y,M,D] = iso.split('-').map(Number);
+    return (M-1)+'-'+D;
+  }
+  function isToday(d){ const n = new Date(); return n.getFullYear()===d.getFullYear() && n.getMonth()===d.getMonth() && n.getDate()===d.getDate(); }
+
+  // ===== Mejoras en vista mes: post-procesado después de construirMes =====
+  const construirMes_original = window.construirMes;
+  window.construirMes = function(mes){
+    construirMes_original.call(this, mes);
+    // Añade chips de eventosPro y doble clic para editor
+    const celdas = grid.querySelectorAll('.cal-dia[data-dia]');
+    celdas.forEach(cell=>{
+      const d = Number(cell.getAttribute('data-dia'));
+      const k = keyDay(mes, d);
+      const list = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
+      // resumen
+      const badgeOld = cell.querySelector('.cal-count');
+      if (badgeOld) badgeOld.remove();
+      if (list.length){
+        const badge = document.createElement('div');
+        badge.className = 'cal-count';
+        badge.textContent = '+'+(list.length);
+        cell.appendChild(badge);
+        cell.classList.add('cal-has-event');
+      }
+      // doble click para crear/editar
+      cell.addEventListener('dblclick', ()=>{
+        const dateISO = new Date(new Date().getFullYear(), mes, d);
+        abrirEditorEvento(toISODate(dateISO));
+      });
+    });
+    // actualizar info
+    info.textContent = 'Vista mes';
+  };
+
+  // ===== Notificaciones locales =====
+  let notifEnabled = false;
+  btnNotif?.addEventListener('click', async ()=>{
+    if (!('Notification' in window)){ alert('Tu navegador no soporta notificaciones.'); return; }
+    const perm = await Notification.requestPermission();
+    notifEnabled = (perm === 'granted');
+    if (notifEnabled) btnNotif.classList.add('active');
   });
 
-  // Ctrl+Enter guarda
-  node.querySelector('#qeNota').addEventListener('keydown', (e)=>{
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) node.querySelector('#qeGuardar').click();
-  });
+  function checkUpcomingEvents(){
+    if (!notifEnabled || !('Notification' in window)) return;
+    const now = new Date();
+    const horizonMin = 10; // avisar eventos que comienzan en <=10 min
+    const firedKey = 'calpro_notifs_' + now.toISOString().slice(0,10);
+    const fired = JSON.parse(localStorage.getItem(firedKey) || '[]');
 
-  document.body.appendChild(node);
-}
+    for (const k in eventosPro){
+      const [mStr,dStr] = k.split('-');
+      const dt = new Date(now.getFullYear(), Number(mStr), Number(dStr));
+      const iso = toISODate(dt);
+      const list = eventosPro[k] || [];
+      list.forEach(ev=>{
+        const [hIni,mIni] = (ev.inicio||'09:00').split(':').map(Number);
+        const evStart = new Date(iso + 'T' + fmt2(hIni)+':'+fmt2(mIni)+':00');
+        const diff = (evStart - now)/60000; // minutos
+        const id = iso+'|'+ev.titulo+'|'+ev.inicio;
+        if (diff >= 0 && diff <= horizonMin && !fired.includes(id)){
+          // lanzar notificación
+          try {
+            new Notification(ev.titulo || 'Evento', { body: ev.nota ? ev.nota : ('Empieza a las ' + ev.inicio) });
+          } catch(e){ /* some browsers require user gesture */ }
+          fired.push(id);
+        }
+      });
+    }
+    localStorage.setItem(firedKey, JSON.stringify(fired));
+  }
+  setInterval(checkUpcomingEvents, 60*1000);
+  // primera pasada unos segundos después
+  setTimeout(checkUpcomingEvents, 5000);
+
+  // ===== Exponer helpers para depurar
+  window.setCalProMode = setMode;
+  window.abrirEditorEvento = abrirEditorEvento;
+
+  // arranque: mantiene comportamiento original (mes)
+  updateToolbar();
+})();
+
 
 </script>
 
-<template id="tplQuickEditor">
-  <div class="qe-backdrop" data-close>
-    <div class="qe-modal" role="dialog" aria-modal="true">
-      <div class="qe-title" id="qeFecha"></div>
-      <textarea id="qeNota" class="qe-note" placeholder="Escribe una nota para este día..."></textarea>
-      <div class="qe-row">
-        <label class="qe-toggle"><input type="checkbox" id="qeEvento"> Marcar como evento</label>
-        <label class="qe-toggle"><input type="checkbox" id="qeSticker"> Añadir ⭐</label>
+<template id="tplEventEditor">
+  <div id="eventEditorBackdrop" data-close>
+    <div id="eventEditor" role="dialog" aria-modal="true">
+      <h3 id="eeTitle">Nuevo evento</h3>
+      <div class="ee-row">
+        <label>Título<input id="eeTitulo" placeholder="Reunión, cita, etc."></label>
       </div>
-      <div class="qe-actions">
-        <button class="qe-btn" data-close>Cancelar (Esc)</button>
-        <button class="qe-btn primary" id="qeGuardar">Guardar (Ctrl+Enter)</button>
+      <div class="ee-row">
+        <label>Fecha<input id="eeFecha" type="date"></label>
+        <label>Inicio<input id="eeInicio" type="time" value="09:00"></label>
+        <label>Fin<input id="eeFin" type="time" value="10:00"></label>
+      </div>
+      <div class="ee-row">
+        <label>Nota<textarea id="eeNota" rows="4" placeholder="Detalles..."></textarea></label>
+      </div>
+      <div class="ee-actions">
+        <button class="ee-btn" id="eeEliminar" style="display:none">Eliminar</button>
+        <div class="ee-actions-right">
+          <button class="ee-btn" data-close>Cancelar (Esc)</button>
+          <button class="ee-btn primary" id="eeGuardar">Guardar (Ctrl+Enter)</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1391,6 +1793,7 @@ function abrirQuickEditor(mes, dia, cell){
         window.userNotes = data.notas || {};
         window.userEvents = data.eventos || {};
         window.userStickers = data.stickers || {};
+        window.userEventsPro = data.eventosPro || {};
         console.log("Datos del usuario cargados desde Firestore.");
       } else {
         // Es la primera vez que el usuario inicia sesión o no tiene datos en Firestore.

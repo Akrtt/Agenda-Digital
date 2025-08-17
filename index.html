@@ -281,25 +281,27 @@
 
 
   
-<!-- Pantalla de login -->
+<!-- Pantalla de login (mejorada, sin tocar la lógica de Firebase) -->
 <div id="loginModal" class="login-wrapper">
   <div class="login-container">
-    <!-- Columna izquierda -->
+    <!-- Columna izquierda (mensaje de bienvenida) -->
     <div class="login-left">
-      <h1>Bienvenido<br>De Nuevo</h1>
-      <p>Accede a tu agenda digital y organiza tu calendario de manera sencilla.</p>
+      <h1>Bienvenido<br>de nuevo</h1>
+      <p>Accede a tu <strong>Agenda + Calendario</strong> para planificar tu día con notas, eventos y stickers.</p>
       <div class="social-icons">
-        <a href="#"><i class="fab fa-facebook-f"></i></a>
-        <a href="#"><i class="fab fa-twitter"></i></a>
-        <a href="#"><i class="fab fa-instagram"></i></a>
-        <a href="#"><i class="fab fa-youtube"></i></a>
+        <a href="#" aria-label="Facebook" title="Facebook"></a>
+        <a href="#" aria-label="X/Twitter" title="X/Twitter"></a>
+        <a href="#" aria-label="Instagram" title="Instagram"></a>
+        <a href="#" aria-label="YouTube" title="YouTube"></a>
       </div>
     </div>
 
-    <!-- Columna derecha -->
+    <!-- Columna derecha (auth) -->
     <div class="login-right">
-      <h2>Iniciar Sesión</h2>
-      <form id="manualLoginForm" class="login-form">
+      <h2 id="authTitle">Iniciar sesión</h2>
+
+      <!-- Formulario de LOGIN (se mantiene el id y campos originales) -->
+      <form id="manualLoginForm" class="login-form" autocomplete="on">
         <input id="loginEmail" type="email" placeholder="Correo electrónico" autocomplete="username" required />
         <input id="loginPassword" type="password" placeholder="Contraseña" autocomplete="current-password" required />
         <div class="remember">
@@ -308,142 +310,82 @@
         </div>
         <button id="manualLoginBtn" type="submit">Entrar</button>
       </form>
+
+      <!-- Formulario de REGISTRO (nuevo) -->
+      <form id="registerForm" class="login-form" style="display:none;">
+        <input id="registerEmail" type="email" placeholder="Correo electrónico" autocomplete="username" required />
+        <input id="registerPassword" type="password" placeholder="Contraseña (mín. 6 caracteres)" required />
+        <input id="registerPassword2" type="password" placeholder="Repite la contraseña" required />
+        <button id="registerBtn" type="submit">Crear cuenta</button>
+      </form>
+
       <button id="modalLoginGoogle" class="google-btn">
-        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google"/> Inicia con Google
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google"/> Continuar con Google
       </button>
-      <a href="#" class="forgot">¿Olvidaste tu contraseña?</a>
-      <div id="loginError" class="login-error"></div>
+
+      <p class="switch-auth" id="switchToRegister">¿No tienes cuenta? <a href="#" id="toRegister">Crear una cuenta</a></p>
+      <p class="switch-auth" id="switchToLogin" style="display:none;">¿Ya tienes cuenta? <a href="#" id="toLogin">Iniciar sesión</a></p>
+
+      <div id="loginError" class="login-error" role="alert" aria-live="polite"></div>
     </div>
   </div>
 </div>
 
 <style>
-.login-wrapper {
-  position: fixed;
-  z-index: 99999;
-  inset: 0;
+/* --- Estilos del login modernizado --- */
+.login-wrapper{
+  position:fixed; inset:0; z-index:99999;
   background: url('fondopantalla1.png') center/cover no-repeat;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: system-ui, sans-serif;
+  display:flex; align-items:center; justify-content:center;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
-.login-container {
-  background: rgba(255,255,255,0.9);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  border-radius: 18px;
-  overflow: hidden;
-  box-shadow: 0 8px 48px rgba(0,0,0,0.35);
-  width: min(900px, 95%);
+.login-container{
+  width:min(980px,95vw);
+  background: rgba(255,255,255,0.92);
+  display:grid; grid-template-columns: 1fr 1fr;
+  border-radius: 18px; overflow:hidden;
+  box-shadow: 0 16px 60px rgba(0,0,0,.35);
 }
-.login-left {
-  background: rgba(0,0,0,0.55);
-  color: #fff;
-  padding: 40px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+.login-left{
+  background: linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,.35)), url('fondopantalla1.png') center/cover no-repeat;
+  color:#fff; padding: 46px 38px; display:flex; flex-direction:column; justify-content:center;
 }
-.login-left h1 {
-  font-size: 2.2rem;
-  margin-bottom: 20px;
+.login-left h1{ font-size: 2.6rem; line-height:1.05; margin:0 0 14px 0; }
+.login-left p{ margin:0; font-size:1.02rem; opacity:.95; }
+.social-icons{ margin-top: 26px; display:flex; gap:12px; }
+.social-icons a{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:36px; height:36px; border-radius:50%;
+  background: rgba(255,255,255,.14);
+  color:#fff; text-decoration:none; font-family:"Font Awesome 5 Free","Font Awesome 5 Brands","Segoe UI Symbol",sans-serif;
 }
-.login-left p {
-  font-size: 1rem;
-  line-height: 1.5;
+.login-right{ padding:42px; display:flex; flex-direction:column; justify-content:center; }
+.login-right h2{ margin:0 0 14px 0; color:#222; font-size:1.6rem; }
+.login-form{ display:flex; flex-direction:column; gap:14px; }
+.login-form input{
+  padding:12px; border-radius:10px; border:1px solid #d6d6d6; font-size:1rem; width:100%; background:#fff;
 }
-.social-icons {
-  margin-top: 30px;
-  display: flex;
-  gap: 12px;
+.login-form button{
+  padding:12px; border-radius:10px; border:none; background:#2196f3; color:#fff; font-weight:800; cursor:pointer;
+  box-shadow: 0 6px 18px rgba(33,150,243,.25); transition: transform .06s, background .2s;
 }
-.social-icons a {
-  color: #fff;
-  font-size: 1.2rem;
-  text-decoration: none;
+.login-form button:active{ transform: translateY(1px); }
+.remember{ display:flex; align-items:center; gap:8px; font-size:.92rem; color:#555; }
+.google-btn{
+  margin-top: 14px; display:inline-flex; align-items:center; gap:10px;
+  background:#fffbe7; border:1.5px solid #f9a825; color:#2d2d6e;
+  font-weight:700; padding:12px 16px; border-radius:10px; cursor:pointer;
 }
-.login-right {
-  padding: 40px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-.login-right h2 {
-  margin-bottom: 20px;
-  color: #222;
-}
-.login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.login-form input {
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  font-size: 1rem;
-  width: 100%;
-}
-.login-form button {
-  padding: 12px;
-  border-radius: 8px;
-  border: none;
-  background: #2196f3;
-  color: #fff;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background .2s;
-}
-.login-form button:hover {
-  background: #1976d2;
-}
-.remember {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.9rem;
-  color: #555;
-}
-.google-btn {
-  margin-top: 20px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: #fffbe7;
-  border: 1.5px solid #f9a825;
-  color: #2d2d6e;
-  font-weight: 600;
-  padding: 12px;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 1rem;
-}
-.google-btn img {
-  width: 24px;
-  height: 24px;
-}
-.forgot {
-  margin-top: 16px;
-  font-size: 0.9rem;
-  color: #2196f3;
-  text-decoration: none;
-}
-.login-error {
-  margin-top: 10px;
-  color: #d32f2f;
-  font-size: 0.9rem;
-  min-height: 20px;
-}
-@media(max-width: 720px) {
-  .login-container {
-    grid-template-columns: 1fr;
-  }
-  .login-left { display: none; }
+.google-btn img{ width:24px; height:24px; }
+.switch-auth{ margin: 14px 0 0 0; font-size:.95rem; color:#555; }
+.switch-auth a{ color:#2196f3; text-decoration:none; font-weight:700; }
+.login-error{ margin-top:12px; min-height:22px; color:#d32f2f; font-size:.95rem; }
+
+@media (max-width: 780px){
+  .login-container{ grid-template-columns: 1fr; }
+  .login-left{ display:none; }
 }
 </style>
-
-  </div>
 
   <div class="stage" aria-label="Agenda 3D con calendario" id="mainApp" style="display:none;">
     <div class="agenda" id="agenda">
@@ -1105,7 +1047,7 @@ async function guardarDatosUsuarioEnFirestore(campo, valor) {
 <script type="module">
   // Importar los módulos necesarios
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
   // Tu configuración (copiada de Firebase Console)
@@ -1139,6 +1081,63 @@ async function guardarDatosUsuarioEnFirestore(campo, valor) {
   // 🔹 Vigilante de autenticación: onAuthStateChanged
   // Login modal button
   const modalLoginBtn = document.getElementById("modalLoginGoogle");
+  // Soporte de UI: alternar entre LOGIN y REGISTRO sin romper IDs existentes
+  const toRegister = document.getElementById("toRegister");
+  const toLogin = document.getElementById("toLogin");
+  const switchToRegister = document.getElementById("switchToRegister");
+  const switchToLogin = document.getElementById("switchToLogin");
+  const authTitle = document.getElementById("authTitle");
+  const registerForm = document.getElementById("registerForm");
+  const registerEmail = document.getElementById("registerEmail");
+  const registerPassword = document.getElementById("registerPassword");
+  const registerPassword2 = document.getElementById("registerPassword2");
+  const registerBtn = document.getElementById("registerBtn");
+
+  function showLoginForm(){
+    if (manualLoginForm) manualLoginForm.style.display = "flex";
+    if (registerForm) registerForm.style.display = "none";
+    if (switchToRegister) switchToRegister.style.display = "";
+    if (switchToLogin) switchToLogin.style.display = "none";
+    if (authTitle) authTitle.textContent = "Iniciar sesión";
+    if (loginError) loginError.textContent = "";
+  }
+  function showRegisterForm(){
+    if (manualLoginForm) manualLoginForm.style.display = "none";
+    if (registerForm) registerForm.style.display = "flex";
+    if (switchToRegister) switchToRegister.style.display = "none";
+    if (switchToLogin) switchToLogin.style.display = "";
+    if (authTitle) authTitle.textContent = "Crear cuenta";
+    if (loginError) loginError.textContent = "";
+  }
+  if (toRegister) toRegister.addEventListener("click", (e)=>{ e.preventDefault(); showRegisterForm(); });
+  if (toLogin) toLogin.addEventListener("click", (e)=>{ e.preventDefault(); showLoginForm(); });
+
+  // Registro con email/contraseña (sin romper el flujo de onAuthStateChanged)
+  if (registerForm) {
+    registerForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      loginError.textContent = "";
+      if (!registerEmail.value || !registerPassword.value || !registerPassword2.value) return;
+      if (registerPassword.value !== registerPassword2.value) {
+        loginError.textContent = "Las contraseñas no coinciden.";
+        return;
+      }
+      try {
+        registerBtn.disabled = true;
+        const cred = await createUserWithEmailAndPassword(auth, registerEmail.value, registerPassword.value);
+        // Crear documento base en Firestore para el usuario recién creado (idempotente con merge)
+        const userDocRef = doc(db, "users", cred.user.uid);
+        await setDoc(userDocRef, { notas: {}, eventos: {}, stickers: {} }, { merge: true });
+        // El onAuthStateChanged se encargará de cerrar el modal y cargar la app
+      } catch (err) {
+        console.error("Error en registro:", err);
+        loginError.textContent = err?.message || "Error al crear la cuenta";
+      } finally {
+        registerBtn.disabled = false;
+      }
+    });
+  }
+
   const manualLoginForm = document.getElementById("manualLoginForm");
   const manualLoginBtn = document.getElementById("manualLoginBtn");
   const loginEmail = document.getElementById("loginEmail");

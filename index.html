@@ -280,21 +280,169 @@
 <body>
 
 
-  <!-- Pantalla de login obligatoria tipo full page -->
-  <div id="loginModal" style="position:fixed;z-index:99999;inset:0;background:#fff;display:flex;align-items:center;justify-content:center;flex-direction:column;transition:opacity .3s;">
-    <div style="background:#fff;padding:40px 32px 32px 32px;border-radius:18px;box-shadow:0 8px 48px #2196f355;display:flex;flex-direction:column;align-items:center;min-width:320px;max-width:95vw;">
-      <h2 style="margin:0 0 18px 0;font-size:1.5rem;color:#222;font-family:system-ui,Arial,sans-serif;">Inicia sesión para acceder a tu agenda</h2>
-      <form id="manualLoginForm" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:0;">
-        <input id="loginEmail" type="email" placeholder="Correo electrónico" autocomplete="username" required style="margin-top:12px;padding:10px 12px;border-radius:8px;border:1px solid #ccc;width:100%;font-size:1rem;" />
-        <input id="loginPassword" type="password" placeholder="Contraseña" autocomplete="current-password" required style="margin-top:8px;padding:10px 12px;border-radius:8px;border:1px solid #ccc;width:100%;font-size:1rem;" />
-        <button id="manualLoginBtn" type="submit" style="margin-top:12px;padding:10px 24px;border-radius:10px;background:#2196f3;color:#fff;font-weight:700;border:none;cursor:pointer;font-size:1rem;width:100%;">Entrar</button>
-      </form>
-      <div style="margin:24px 0 8px 0;width:100%;text-align:center;color:#888;font-size:.95rem;">o accede con</div>
-      <button id="modalLoginGoogle" style="padding:12px 28px;border-radius:10px;background:#fffbe7;color:#2d2d6e;font-weight:700;border:1.5px solid #f9a825;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;gap:10px;">
-        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" style="width:28px;height:28px;"/> Google
-      </button>
-      <div id="loginError" style="color:#d32f2f;font-size:.98rem;margin-top:10px;min-height:22px;text-align:center;"></div>
+  
+<!-- Pantalla de login -->
+<div id="loginModal" class="login-wrapper">
+  <div class="login-container">
+    <!-- Columna izquierda -->
+    <div class="login-left">
+      <h1>Bienvenido<br>De Nuevo</h1>
+      <p>Accede a tu agenda digital y organiza tu calendario de manera sencilla.</p>
+      <div class="social-icons">
+        <a href="#"><i class="fab fa-facebook-f"></i></a>
+        <a href="#"><i class="fab fa-twitter"></i></a>
+        <a href="#"><i class="fab fa-instagram"></i></a>
+        <a href="#"><i class="fab fa-youtube"></i></a>
+      </div>
     </div>
+
+    <!-- Columna derecha -->
+    <div class="login-right">
+      <h2>Iniciar Sesión</h2>
+      <form id="manualLoginForm" class="login-form">
+        <input id="loginEmail" type="email" placeholder="Correo electrónico" autocomplete="username" required />
+        <input id="loginPassword" type="password" placeholder="Contraseña" autocomplete="current-password" required />
+        <div class="remember">
+          <input type="checkbox" id="rememberMe">
+          <label for="rememberMe">Recuérdame</label>
+        </div>
+        <button id="manualLoginBtn" type="submit">Entrar</button>
+      </form>
+      <button id="modalLoginGoogle" class="google-btn">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google"/> Inicia con Google
+      </button>
+      <a href="#" class="forgot">¿Olvidaste tu contraseña?</a>
+      <div id="loginError" class="login-error"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+.login-wrapper {
+  position: fixed;
+  z-index: 99999;
+  inset: 0;
+  background: url('fondopantalla1.png') center/cover no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: system-ui, sans-serif;
+}
+.login-container {
+  background: rgba(255,255,255,0.9);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 8px 48px rgba(0,0,0,0.35);
+  width: min(900px, 95%);
+}
+.login-left {
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.login-left h1 {
+  font-size: 2.2rem;
+  margin-bottom: 20px;
+}
+.login-left p {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+.social-icons {
+  margin-top: 30px;
+  display: flex;
+  gap: 12px;
+}
+.social-icons a {
+  color: #fff;
+  font-size: 1.2rem;
+  text-decoration: none;
+}
+.login-right {
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.login-right h2 {
+  margin-bottom: 20px;
+  color: #222;
+}
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.login-form input {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+  width: 100%;
+}
+.login-form button {
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  background: #2196f3;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .2s;
+}
+.login-form button:hover {
+  background: #1976d2;
+}
+.remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #555;
+}
+.google-btn {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fffbe7;
+  border: 1.5px solid #f9a825;
+  color: #2d2d6e;
+  font-weight: 600;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+.google-btn img {
+  width: 24px;
+  height: 24px;
+}
+.forgot {
+  margin-top: 16px;
+  font-size: 0.9rem;
+  color: #2196f3;
+  text-decoration: none;
+}
+.login-error {
+  margin-top: 10px;
+  color: #d32f2f;
+  font-size: 0.9rem;
+  min-height: 20px;
+}
+@media(max-width: 720px) {
+  .login-container {
+    grid-template-columns: 1fr;
+  }
+  .login-left { display: none; }
+}
+</style>
+
   </div>
 
   <div class="stage" aria-label="Agenda 3D con calendario" id="mainApp" style="display:none;">

@@ -3,998 +3,1859 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Agenda Digital — Calendario Pro (refactor)</title>
+  <title>Agenda Digital — Calendario (v900)</title>
 
   <!--
     =============================================================
-    AGENDA + CALENDARIO (REFactor 2025-08-17)
-    - Mantiene los mismos IDs y contratos públicos para NO romper login ni Firestore.
-    - Usa solo HTML+CSS+JS (sin librerías pesadas).
-    - Vistas: Mes / Semana / Día con rejilla de horas.
-    - Editor de eventos accesible, drag & drop con límites.
-    - Badges "+n" en mes, notificaciones 10 min antes.
-    - Persistencia en Firestore vía window.firebaseFirestore + guardarDatosUsuarioEnFirestore().
-    - Compatibilidad con mapa legacy 'eventos' (boolean) y nuevo 'eventosPro' (array de eventos por día).
-    - Accesible (ARIA), responsive y con estilo tipo Google Calendar liviano.
+    AGENDA + CALENDARIO — TODO EN UN ARCHIVO
+    Versión larga (~900 líneas) pensada para que:
+      - Los días NO se vean gigantes en ninguna pantalla.
+      - El calendario sea totalmente responsive y centrado.
+      - Cada mes tenga su temática estacional (invierno/primavera/verano/otoño).
+      - Se pueda abrir/cerrar portada con animación 3D.
+      - Se puedan poner notas por día (guardadas en localStorage).
+      - Se puedan añadir “eventos” y “stickers” por día (iconos).
+      - Navegación con teclado y accesibilidad ARIA.
+      - Código estructurado y comentado para que puedas ampliar fácilmente.
     =============================================================
   -->
 
   <style>
-    :root{
-      --bg: #0b0d10;
-      --paper:#ffffff;
-      --ink:#111827;
-      --muted:#6b7280;
-      --primary:#2563eb;
-      --primary-weak:#e0e7ff;
-      --accent:#10b981;
-      --warn:#f59e0b;
-      --danger:#ef4444;
-      --ring: rgba(37,99,235,.35);
-      --border:#e5e7eb;
-      --radius:14px;
-      --shadow:0 10px 40px rgba(0,0,0,.15);
+    /* ------------------------------------------------------------
+       RESET BÁSICO + VARIABLES
+       ------------------------------------------------------------ */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #111; }
+
+    :root {
+      /* Portada */
+      --cover-dark: #0e1114;
+      --cover-mid: #22272c;
+      --cover-light: #2f373d;
+      --banda-start: #41d7c6;
+      --banda-end:   #0aa6b1;
+      --shadow-1: 0 26px 60px rgba(0,0,0,.58);
+      --shadow-2: 0 48px 120px rgba(0,0,0,.75);
+
+      /* Calendario */
+      --ui-primary: #2d2d6e;
+      --ui-accent:  #2196f3;
+      --ui-warm:    #f9a825;
+      --ui-mint:    #41d7c6;
+      --ui-paper:   #ffffff;
+      --ui-ink:     #2d2d6e;
+      --ui-soft:    #e0f7fa;
+      --ui-soft-2:  #b2e0f7;
+      --ring:       rgba(33,150,243,0.35);
+
+      --radius: 18px;
+      --radius-sm: 10px;
+      --radius-lg: 22px;
+
+      --shadow-soft: 0 6px 24px rgba(0,0,0,.08);
+      --shadow-strong: 0 18px 64px rgba(0,0,0,.18);
+
+      /* Tipografía */
+      --title: clamp(1.8rem, 2.2vw, 3rem);
+      --h2:    clamp(1.2rem, 1.6vw, 2rem);
+      --h3:    clamp(1rem, 1.25vw, 1.35rem);
+      --txt:   clamp(.95rem, 1vw, 1.1rem);
     }
 
-    /* Fondo */
-    html,body{height:100%}
-    body{margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg) url('fondopantalla1.png') center/cover no-repeat fixed; color:#fff;}
-
-    /* ===== Login Overlay (IDs preservados) ===== */
-    #loginModal{position:fixed; inset:0; z-index:99999; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.35)}
-    .login-container{ width:min(980px,95vw); display:grid; grid-template-columns:1fr 1fr; border-radius:18px; overflow:hidden; background:#fff; color:#111; box-shadow:var(--shadow) }
-    .login-left{ background: linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,.35)), url('fondopantalla1.png') center/cover no-repeat; color:#fff; padding: 46px 38px; display:flex; flex-direction:column; justify-content:center;}
-    .login-left h1{ font-size: 2.6rem; line-height:1.05; margin:0 0 14px 0; }
-    .login-left p{ margin:0; font-size:1.02rem; opacity:.95; }
-    .social-icons{ margin-top: 26px; display:flex; gap:12px; }
-    .social-icons a{ width:36px; height:36px; border-radius:50%; background: rgba(255,255,255,.14); display:grid; place-items:center; color:#fff; text-decoration:none; }
-    .login-right{ padding:42px; display:flex; flex-direction:column; justify-content:center; }
-    .login-right h2{ margin:0 0 14px 0; color:#111; font-size:1.6rem; }
-    .login-form{ display:flex; flex-direction:column; gap:14px; }
-    .login-form input{ padding:12px; border-radius:10px; border:1px solid #d6d6d6; font-size:1rem; width:100%; background:#fff; }
-    .login-form button{ padding:12px; border-radius:10px; border:none; background:var(--primary); color:#fff; font-weight:800; cursor:pointer; box-shadow: 0 6px 18px rgba(37,99,235,.25); }
-    .remember{ display:flex; align-items:center; gap:8px; font-size:.92rem; color:#555; }
-    .google-btn{ margin-top: 14px; display:inline-flex; align-items:center; gap:10px; background:#fff; border:1.5px solid var(--border); color:#111; font-weight:700; padding:12px 16px; border-radius:10px; cursor:pointer; }
-    .google-btn img{ width:24px; height:24px; }
-    .switch-auth{ margin: 14px 0 0 0; font-size:.95rem; color:#555; }
-    .switch-auth a{ color:#2563eb; text-decoration:none; font-weight:700; }
-    .login-error{ margin-top:12px; min-height:22px; color:#d32f2f; font-size:.95rem; }
-    @media (max-width: 780px){ .login-container{ grid-template-columns:1fr; } .login-left{ display:none; } }
-
-    /* ===== App Stage (agenda + overlay calendario) ===== */
-    .stage{ position:fixed; inset:0; display:grid; place-items:center; }
-    .agenda{ position:relative; width:min(46vw,420px); aspect-ratio:7/10; transform-style:preserve-3d; }
-    .tapa{ position:absolute; inset:0; border-radius:14px; background: linear-gradient(180deg,#0e1114,#2f373d); box-shadow:0 26px 60px rgba(0,0,0,.58); transform-origin:left center; backface-visibility:hidden; z-index:2; cursor:pointer; transition: transform 1s cubic-bezier(.77,0,.175,1), box-shadow .5s }
-    .tapa:hover{ transform: scale(1.03) }
-    .lomo{ position:absolute; left:-22px; top:0; bottom:0; width:28px; background: linear-gradient(90deg,#040506,#0b0e11 45%,#040506); border-radius:10px 0 0 10px; }
-    .banda{ position:absolute; left:32px; top:18px; bottom:18px; width:72px; border-radius:10px; background: linear-gradient(180deg,#41d7c6,#0aa6b1); display:flex; align-items:center; justify-content:center; writing-mode: vertical-rl; transform: rotate(180deg); font-weight:900; font-size:32px; color:#01292a; }
-    .cara{ position:absolute; inset:24px 24px 24px 132px; }
-    .mes-portada{ font-style:italic; font-weight:600; font-size:24px; color:#dff9f6; }
-    .dia-wrap{ margin-top:20px; display:flex; align-items:center; justify-content:center; min-width:90px; min-height:90px; border-radius:12px; background: rgba(255,255,255,0.05); }
-    .dia-portada{ font-weight:900; font-size:54px; }
-    .hora-actual{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 1.1rem; color: #b2e0f7; text-shadow: 0 1px 4px #1116; margin-top: 8px; letter-spacing: .04em; user-select: none; }
-
-    .indice{ position:absolute; inset:0; border-radius:14px; background:#fff; color:#111; padding:0; box-shadow: 0 26px 60px rgba(0,0,0,.35); transform: rotateY(180deg) translateX(60px) scale(.95); opacity:0; backface-visibility:hidden; overflow:auto; z-index:1; transition: opacity .7s cubic-bezier(.77,0,.175,1), transform .7s cubic-bezier(.77,0,.175,1); display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100%;}
-    .agenda.abierta .tapa{ transform: rotateY(-180deg) scale(1.02) translateX(-10px); z-index:0; box-shadow:none; }
-    .agenda.abierta .indice{ opacity:1; transform: rotateY(0deg) translateX(0) scale(1); z-index:2; }
-
-    .indice-content{ position:relative; z-index:1; width: 90%; max-width: 520px; margin: 0 auto; text-align:center; padding: 32px 0 16px 0; }
-    .indice-content h2{ font-family: Georgia, serif; font-size: clamp(2rem, 4vw, 3rem); color:#1f2937; margin: 0 0 24px 0; }
-    .indice-table{ width:100%; border-collapse: collapse; margin-bottom: 10px; table-layout: fixed; }
-    .indice-table td{ font-size:1.05rem; font-weight:700; padding:12px 6px; text-align:center; border-bottom:3px solid #222; cursor:pointer; user-select:none; }
-    .indice-table tr td:first-child{ border-right:3px solid #222 }
-    .indice-table tr:last-child td{ border-bottom:none }
-    .indice-table td:hover{ background:#f5f5ff }
-    .mes-actual{ color:#22c55e; font-weight:900; text-decoration: underline; background: rgba(34,197,94,0.07); border-radius: 6px; }
-    .indice-row-actions{ display:flex; align-items:center; justify-content:center; gap:12px; margin:10px 0 0 0 }
-    .indice-flecha-btn,.indice-btn{ background:#bfc6fa; color:#222; font-weight:700; font-size:1rem; border-radius: 14px; padding: 8px 18px; border:none; cursor:pointer; }
-    .indice-flecha-btn:hover,.indice-btn:hover{ background:#a3b0f7 }
-
-    /* ===== Overlay Calendario ===== */
-    .calendario{ position: fixed; inset: 0; display: grid; place-items: center; z-index: 2000; background: rgba(0,0,0,0.22); opacity: 0; pointer-events: none; transform: scale(.98); transition: opacity .35s, transform .35s; backdrop-filter: blur(2.5px) brightness(0.98); }
-    .calendario.visible{ opacity:1; pointer-events:auto; transform: scale(1) }
-    .calendario-bg{ position:absolute; inset:0; z-index:0; pointer-events:none; background: linear-gradient(135deg, #b2f0f7 0%, #e0f7fa 100%); opacity:.22 }
-
-    .calendario-content{ position: relative; z-index:1; width: clamp(340px, 94vw, 1100px); height: clamp(360px, 92vh, 780px); background: var(--paper); color:var(--ink); border-radius: 22px; box-shadow: 0 8px 48px #2563eb40; overflow: hidden; display:flex; flex-direction: column;}
-    .cal-header{ display:flex; align-items:center; gap: 12px; padding: 12px; border-bottom: 1px solid var(--border); background:#fff; position: sticky; top:0; z-index: 10; }
-    .calendario-nav-btn{ background:#eef2ff; border:1px solid #dbe2ff; border-radius: 10px; width: 40px; height: 40px; display:grid; place-items: center; cursor:pointer; }
-    #calTitulo{ font-family: Georgia, serif; font-size: clamp(1.2rem, 3.2vw, 2rem); margin: 0 8px; }
-    .toolbar{ margin-left:auto; display:flex; gap:8px }
-    .tool-btn{ background:#f6f7fb; border:1px solid #e7e9f3; padding:8px 12px; border-radius: 10px; cursor:pointer; font-weight:700; }
-
-    .calpro-bar{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin:6px 10px 0 }
-    .calpro-btn{ border:1px solid var(--border); background:#fff; padding:6px 10px; border-radius:10px; font-weight:700; cursor:pointer; }
-    .calpro-btn.active{ background:#111; color:#fff; border-color:#111; }
-    .calpro-badge{ font-size:.78rem; padding:.5px 6px; border-radius:999px; background:#eef2ff; border:1px solid #e0e7ff; color:#1e40af; }
-
-    .cal-main{ display:grid; grid-template-columns: 1fr min(26ch, 28%); gap: 12px; padding: 12px; height: 100%; overflow: hidden; }
-    .cal-grid-wrap{ overflow:auto; border-radius: 12px; border:1px solid var(--border); background:#f8fafc }
-    .cal-grid{ display:grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(72px, 1fr); gap: 8px; padding: 10px; min-height: 420px; align-content: start; }
-
-    .cal-dia-header{ background: #fffbe7; color: #1f2937; font-weight: 900; font-size: .95rem; border-bottom: 2px solid var(--warn); border-radius: 10px; display:grid; place-items:center; padding: 8px; user-select:none; }
-
-    .cal-dia{ background:#fff; border:1px solid var(--border); border-radius:12px; box-shadow: 0 1px 1px rgba(0,0,0,.03); display:flex; flex-direction:column; gap:6px; padding: 6px; position: relative; cursor:pointer; transition: box-shadow .12s, border-color .12s, background .12s; min-height:84px; outline:none; }
-    .cal-dia:hover{ box-shadow: 0 10px 32px rgba(37,99,235,.12); border-color:#c7d2fe; background:#f8fbff }
-    .cal-dia:focus-visible{ box-shadow: 0 0 0 4px var(--ring) }
-    .cal-dia-hoy{ background:#ecfeff; border:2px solid var(--accent) }
-    .cal-dia-num{ font-weight:900; font-size:.95rem; line-height:1 }
-
-    .month-list{ display:flex; flex-direction:column; gap:6px; margin-top:auto }
-    .month-event{ display:flex; align-items:center; gap:6px; font-size:.85rem; background:#eef2ff; border:1px solid #c7d2fe; border-radius:10px; padding:3px 6px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-    .month-more{ position:absolute; right:6px; bottom:6px; background:#f5f3ff; border:1px solid #e5e7eb; border-radius:999px; font-size:.75rem; padding:2px 6px }
-
-    /* Semana / Día rejilla */
-    #calGrid.calpro-week{ grid-template-columns: 72px repeat(7, 1fr); }
-    #calGrid.calpro-day{ grid-template-columns: 72px 1fr; }
-    .calpro-colhead{ font-weight:800; padding:8px; border-bottom:1px solid var(--border); background:#fff; position:sticky; top:0; z-index:5; }
-    .calpro-hour{ border-top:1px dashed #e5e7eb; min-height:44px; position:relative; font-size:.78rem; }
-    .calpro-hour-label{ position:sticky; left:0; font-weight:700; color:var(--muted); padding:6px 4px; background:#f8fafc }
-    .calpro-slot{ border-top:1px dashed #f1f5f9; min-height:44px; position:relative; cursor: crosshair; background:#fff }
-    .calpro-today{ background: linear-gradient(180deg, rgba(16,185,129,0.08), transparent 60%); }
-    .calpro-now{ position:absolute; left:0; right:0; height:2px; background:var(--danger); box-shadow: 0 0 0 1px var(--danger); pointer-events:none; }
-    .calpro-now-dot{ position:absolute; left:-4px; top:-3px; width:8px; height:8px; border-radius:50%; background:var(--danger); }
-
-    .calpro-event{ position:absolute; left:6px; right:6px; border-radius:10px; border:1px solid #c7d2fe; background:#eef2ff; padding:6px 8px; font-size:.82rem; overflow:hidden; user-select:none; }
-    .calpro-event.dragging{ opacity:.6; outline:2px dashed #60a5fa }
-
-    /* Lateral */
-    .side-panel{ border-left:1px solid var(--border); padding: 10px; overflow:auto; background:#fff; border-radius:12px }
-    .side-panel h3{ margin:0 0 8px 0; font-size:1rem; color:#111 }
-    .side-panel .nota{ width:100%; min-height:140px; resize:vertical; padding:10px; border-radius:12px; border:1px solid #e5e5ef; font-family:inherit; font-size:.98rem; background:#fbfdff }
-    .side-panel .row{ display:flex; gap:8px; margin-top:8px }
-    .btn-guardar{ background: var(--accent); color: #fff; border:none; border-radius:10px; padding:10px 12px; font-weight:700; cursor:pointer }
-    .btn-borrar{ background: #ef4444; color:#fff; border:none; border-radius:10px; padding:10px 12px; font-weight:700; cursor:pointer }
-    .tool-btn{ cursor:pointer }
-
-    .overlay-back{ position:absolute; left: 10px; bottom: 10px; background:#eef2ff; border: 1px solid #dbe2ff; border-radius: 999px; padding: 8px 12px; display:flex; align-items:center; gap:8px; cursor:pointer; }
-
-    @media (max-width:1024px){
-      .agenda{ width:min(60vw,420px) }
-      .cal-main{ grid-template-columns:1fr }
-      .side-panel{ border-left:none; border-top:1px solid var(--border) }
-    }
-    @media (max-width:640px){
-      .agenda{ width:min(98vw,420px) }
-      .cal-grid{ gap:4px; grid-auto-rows:minmax(54px,1fr); padding:4px }
-      .cal-dia{ min-height:54px; font-size:.95rem }
-      .calendario-content{ border-radius:10px }
-      .cal-header{ padding:8px 6px }
-      .side-panel{ padding:6px }
+    /* Fondo general (sutil) */
+    body {
+      background: #0b0d10 url("fondopantalla1.png") center/cover no-repeat fixed;
+      color: #fff;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
     }
 
-    /* ===== Event Editor Modal ===== */
-    #eventEditorBackdrop{ position:fixed; inset:0; background: rgba(16,18,27,.45); backdrop-filter: blur(2px); display:flex; align-items:center; justify-content:center; z-index:9999; }
-    #eventEditor{ width:min(640px,95vw); background:#fff; border-radius:16px; border:1px solid #e5e7eb; box-shadow: 0 20px 60px rgba(0,0,0,.18); padding:16px; color:#111 }
-    #eventEditor h3{ margin:0 0 6px 0; font-size:1.1rem; }
-    .ee-row{ display:flex; gap:10px; margin-top:8px; }
-    .ee-row > label{ display:flex; flex-direction:column; gap:4px; flex:1; font-size:.9rem; }
-    .ee-row input,.ee-row textarea{ border:1px solid #dfe3ea; border-radius:10px; padding:8px; font-size:1rem }
-    .ee-actions{ display:flex; justify-content:space-between; gap:8px; margin-top:12px; }
-    .ee-actions-right{ display:flex; gap:8px; }
-    .ee-btn{ padding:8px 12px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; font-weight:700; }
-    .ee-btn.primary{ background:#111; color:#fff; border-color:#111; }
-    .ee-btn.danger{ background:#ef4444; color:#fff; border-color:#ef4444 }
-  </style>
+    .stage { perspective: 1800px; position: relative; width: 100%; height: 100%; display: grid; place-items: center; }
+
+    /* ------------------------------------------------------------
+       AGENDA (PORTADA 3D)
+       ------------------------------------------------------------ */
+    .agenda {
+      position: relative;
+      width: min(46vw, 420px);
+      aspect-ratio: 7/10;
+      transform-style: preserve-3d;
+    }
+
+    .tapa {
+      position: absolute; inset: 0;
+      border-radius: 14px;
+      background: linear-gradient(180deg, var(--cover-dark), var(--cover-mid) 60%, var(--cover-light));
+      box-shadow: var(--shadow-1);
+      transform-origin: left center;
+      backface-visibility: hidden;
+      transition: transform 1s cubic-bezier(.77,0,.175,1), box-shadow .5s cubic-bezier(.77,0,.175,1);
+      z-index: 2; cursor: pointer;
+      will-change: transform, box-shadow;
+    }
+    .tapa:active { filter: brightness(0.98); }
+    .tapa:focus-visible { outline: 3px solid var(--ui-accent); }
+    .tapa:hover { transform: scale(1.05) rotateY(0deg); box-shadow: var(--shadow-2); }
+
+    .lomo {
+      position: absolute; left: -22px; top: 0; bottom: 0; width: 28px;
+      background: linear-gradient(90deg,#040506, #0b0e11 45%, #040506);
+      border-radius:10px 0 0 10px;
+    }
+    .banda {
+      position: absolute; left: 32px; top: 18px; bottom: 18px; width: 72px;
+      border-radius: 10px;
+      background: linear-gradient(180deg, var(--banda-start), var(--banda-end));
+      display: flex; align-items: center; justify-content: center;
+      writing-mode: vertical-rl; transform: rotate(180deg);
+      font-weight: 900; font-size: 32px; color:#01292a;
+    }
+    .cara { position:absolute; inset:24px 24px 24px 132px; z-index:1; }
+    .tag { font-size: 12px; opacity: .7; }
+    .mes-portada { font-style: italic; font-weight: 600; font-size: 24px; color: #dff9f6; }
+    .dia-wrap { margin-top: 20px; display:flex; align-items:center; justify-content:center; min-width:90px; min-height:90px; border-radius:12px; background: rgba(255,255,255,0.05); }
+    .dia-portada { font-weight:900; font-size:54px; }
+
+    /* Reverso con índice */
+    .indice {
+      position:absolute; inset:0; border-radius:14px; background:#fff; color:#111; padding:0;
+      box-shadow: var(--shadow-1); transform: rotateY(180deg) translateX(60px) scale(0.95); opacity:0;
+      backface-visibility: hidden; overflow:auto; z-index:1;
+      transition: opacity .7s cubic-bezier(.77,0,.175,1), transform .7s cubic-bezier(.77,0,.175,1);
+      display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100%;
+    }
+
+  .agenda.abierta .tapa { transform: rotateY(-180deg) scale(1.03) translateX(-10px); z-index:0; box-shadow:none; transition: transform 1.1s cubic-bezier(.77,0,.175,1), box-shadow .5s; }
+  .agenda.abierta .indice { opacity:1; transform: rotateY(0deg) translateX(0) scale(1); z-index:2; transition: opacity .7s, transform 1.1s cubic-bezier(.77,0,.175,1); }
+
+    .indice-bg { position:absolute; inset:0; z-index:0; pointer-events:none; border-radius:14px; overflow:hidden; }
+    .indice-bg svg { width:100%; height:100%; display:block; }
+
+    .indice-content { position:relative; z-index:1; width: 90%; max-width: 520px; margin: 0 auto; text-align:center; padding: 32px 0 16px 0; }
+    .indice-content h2 { font-family: Georgia, serif; font-size: clamp(2rem, 4vw, 3rem); letter-spacing:.1em; color: var(--ui-primary); margin: 0 0 24px 0; }
+
+    .indice-table { width:100%; border-collapse: collapse; margin-bottom: 10px; table-layout: fixed; }
+    .indice-table td {
+      font-family: Segoe UI, Arial, sans-serif; font-size: 1.05rem; font-weight: 700; padding: 12px 6px; letter-spacing:.03em; text-align:center;
+      border-bottom: 3px solid #222; border-right: 0; border-left: 0; border-top: 0; cursor: pointer; user-select: none;
+    }
+    .indice-table tr td:first-child { border-right: 3px solid #222; }
+    .indice-table tr:last-child td { border-bottom: none; }
+    .indice-table td:hover { background: #f5f5ff; }
+
+    .mes-actual { color:#4caf50; font-weight:900; text-decoration: underline; background: rgba(76,175,80,0.07); border-radius: 6px; }
+
+    .indice-row-actions { display:flex; align-items:center; justify-content:center; gap:12px; margin: 10px 0 0 0; }
+    .indice-flecha-btn, .indice-btn {
+      background:#bfc6fa; color:#222; font-weight:700; font-size:1rem; border-radius: 14px; padding: 8px 18px; letter-spacing: .03em; box-shadow: 0 2px 8px rgba(44,44,100,.08);
+      border:none; cursor:pointer; transition: background .2s, transform .12s; display:flex; align-items:center; gap:8px;
+    }
+    .indice-flecha-btn:hover, .indice-btn:hover { background: #a3b0f7; }
+    .indice-flecha-btn:active, .indice-btn:active { transform: scale(.98); }
+
+    /* ------------------------------------------------------------
+       OVERLAY DEL CALENDARIO (MODAL)
+       ------------------------------------------------------------ */
+    .calendario { position: fixed; inset: 0; display: grid; place-items: center; z-index: 2000; background: rgba(0,0,0,0.22); opacity: 0; pointer-events: none; transform: scale(.98) rotateY(90deg); transition: opacity .6s cubic-bezier(.77,0,.175,1), transform .6s cubic-bezier(.77,0,.175,1); backdrop-filter: blur(2.5px) brightness(0.98); }
+    .calendario.visible { opacity: 1; pointer-events: auto; transform: scale(1) rotateY(0deg); }
+
+    .calendario-bg { position:absolute; inset:0; z-index:0; pointer-events:none; background: linear-gradient(135deg, #b2f0f7 0%, #e0f7fa 100%); opacity: .22; }
+
+    .calendario-content {
+      position: relative; z-index:1; width: clamp(340px, 94vw, 1100px); height: clamp(360px, 92vh, 780px);
+      background: var(--ui-paper); border-radius: min(2vw, 22px); box-shadow: 0 8px 48px #2196f355; overflow: hidden; display:flex; flex-direction: column;
+      animation: fadeInCal .5s cubic-bezier(.77,0,.175,1);
+    }
+    @keyframes fadeInCal { from { opacity:0; transform: scale(.98); } to { opacity:1; transform: scale(1); } }
+
+    .cal-header { display:flex; align-items:center; justify-content:center; gap: 16px; padding: 14px 14px 8px 14px; border-bottom: 1px solid #eef2f7; background: #fff; position: sticky; top:0; z-index: 10; }
+    #calTitulo { font-family: Georgia, serif; font-size: clamp(1.2rem, 3.2vw, 2.2rem); color: var(--ui-primary); margin: 0 8px; letter-spacing: .5px; text-shadow: 0 1px 0 #fff; user-select: none; }
+
+    .calendario-nav-btn { background: #e9f5ff; border: 1px solid #d9ecff; border-radius: 50%; width: 40px; height: 40px; display:grid; place-items: center; cursor:pointer; transition: transform .12s, background .2s; }
+    .calendario-nav-btn:hover { background: #d9ecff; }
+    .calendario-nav-btn:active { transform: scale(.96); }
+
+    .toolbar { display:flex; gap:8px; align-items:center; }
+    .tool-btn { background:#f6f7fb; border:1px solid #e7e9f3; padding:8px 12px; border-radius: 10px; cursor:pointer; font-size:.9rem; }
+    .tool-btn:hover { background:#eef1f8; }
+
+    .cal-main { display:grid; grid-template-columns: 1fr min(24ch, 28%); gap: 16px; padding: 14px; height: 100%; overflow: hidden; }
+
+    /* Panel lateral (mini agenda del día seleccionado) */
+    .side-panel { border-left: 1px solid #eef2f7; padding: 12px; overflow: auto; }
+    .side-panel h3 { margin: 0 0 8px 0; font-size: var(--h3); color: var(--ui-primary); }
+    .side-panel .nota { width: 100%; min-height: 140px; resize: vertical; padding: 10px; border-radius: 12px; border: 1px solid #e5e5ef; font-family: inherit; font-size: .98rem; background: #fbfdff; }
+    .side-panel .row { display:flex; gap:8px; margin-top: 8px; }
+    .side-panel .row button { flex:1; padding:10px 12px; border-radius: 10px; border: none; cursor: pointer; font-weight:700; }
+    .btn-guardar { background: var(--ui-mint); color: #fff; }
+    .btn-borrar  { background: #f44336; color: #fff; }
+
+    /* GRID del calendario */
+    .cal-grid-wrap { overflow:auto; border-radius: 12px; }
+    .cal-grid { 
+      display:grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(72px, 1fr);
+      gap: 8px; padding: 10px; border-radius: 12px; background: #f7fbff; box-shadow: inset 0 0 0 1px #eef2f7;
+      min-height: 420px; align-content: start;
+      transition: opacity .35s cubic-bezier(.77,0,.175,1);
+      opacity: 1;
+    }
+
+    /* Cabecera de días */
+    .cal-dia-header {
+      background: #fffbe7; color: var(--ui-primary); font-weight: 900; font-size: clamp(.85rem, 1.1vw, 1rem); border-bottom: 2px solid var(--ui-warm);
+      border-radius: 10px; display:grid; place-items:center; padding: 8px; user-select:none;
+    }
+
+    /* Celda día */
+    .cal-dia {
+      background: #ffffff; color: var(--ui-ink); border: 1px solid #e9eef6; border-radius: 12px; box-shadow: var(--shadow-soft);
+      display:flex; align-items:flex-start; justify-content:flex-end; padding: 8px; position: relative; cursor: pointer; transition: transform .12s, box-shadow .15s, border-color .15s, background .15s;
+      min-height: 84px; outline: none;
+    }
+    .cal-dia:hover { box-shadow: 0 10px 32px rgba(33,150,243,.12); transform: translateY(-2px); border-color: #d8e7ff; background: #fbfdff; }
+    .cal-dia:focus-visible { box-shadow: 0 0 0 4px var(--ring); }
+  .cal-dia.selected { border: 2px solid var(--ui-warm); box-shadow: 0 10px 40px rgba(249,168,37,.25); background: #fffbe7; }
+    .cal-dia-hoy { background: #e8fffdf0; border: 2px solid var(--ui-mint); }
+
+    .cal-dia-num { font-weight: 900; font-size: 1rem; line-height: 1; z-index: 1; user-select:none; }
+
+    /* Mini chips dentro del día */
+    .chip { position: absolute; left: 8px; bottom: 8px; display:inline-flex; align-items:center; gap:6px; padding: 4px 8px; border-radius: 999px; font-size: .78rem; font-weight: 700; }
+    .chip-event { background: #e6fffb; color: #027a72; border: 1px solid #a8f5ec; }
+    .chip-sticker { background: #fff9e6; color: #7a5a02; border: 1px solid #ffe08a; left: auto; right: 8px; }
+
+    /* Menu contextual */
+  .ctx { position: fixed; background:#fffbe7; border: 2px solid var(--ui-warm); border-radius: 14px; box-shadow: 0 18px 48px rgba(33,150,243,.13), 0 2px 8px #fff8; padding: 10px; z-index: 9999; display:flex; flex-direction:column; gap:8px; min-width: 200px; animation: fadeInCtx .18s cubic-bezier(.77,0,.175,1); }
+  @keyframes fadeInCtx { from { opacity:0; transform: translateY(8px) scale(.98); } to { opacity:1; transform: none; } }
+  .ctx button { background:#fff; border:1px solid #f4e1a1; padding:10px 12px; border-radius: 10px; cursor:pointer; font-weight:700; text-align:left; transition: background .18s, box-shadow .18s; }
+  .ctx button:hover, .ctx button:focus { background:#fff4c4; box-shadow: 0 2px 8px #f9a82533; }
+    .ctx button { background:#fff; border:1px solid #f4e1a1; padding:8px 10px; border-radius: 10px; cursor:pointer; font-weight:700; text-align:left; }
+    .ctx button:hover { background:#fff4c4; }
+
+    /* Nota emergente (modal chica) */
+    .nota-modal { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%); background: #fffef8; border: 2px solid var(--ui-warm); border-radius: 18px; box-shadow: 0 20px 80px rgba(0,0,0,.25); width: min(92vw, 520px); max-height: 80vh; display:flex; flex-direction:column; z-index: 4000; }
+    .nota-modal header { padding: 12px 14px; display:flex; align-items:center; justify-content: space-between; gap: 10px; background: #fffbe7; border-bottom: 1px solid #f3e6b2; border-radius: 16px 16px 0 0; }
+    .nota-modal header h4 { margin:0; font-size: 1.05rem; color: var(--ui-primary); }
+    .nota-modal .content { padding: 12px; }
+    .nota-modal textarea { width: 100%; min-height: 200px; resize: vertical; border-radius: 12px; border: 1px solid #e9d36a; padding: 10px; background: #fff; font-family: inherit; font-size: 1rem; }
+    .nota-modal footer { padding: 12px; display:flex; gap:8px; justify-content: flex-end; border-top: 1px solid #f3e6b2; }
+  .btn { padding:10px 14px; border-radius: 10px; border:none; cursor:pointer; font-weight:700; transition: background .18s, box-shadow .18s; }
+  .btn.primary { background: var(--ui-warm); color:#222; box-shadow: 0 2px 8px #f9a82533; }
+  .btn.soft { background: #edf2f7; color:#222; }
+  .btn:active { filter: brightness(0.97); }
+  .btn:focus-visible { outline: 2.5px solid var(--ui-accent); }
+
+    /* Footer del overlay (volver al índice) */
+    .overlay-back { position: absolute; left: 10px; bottom: 10px; background:#e9f5ff; border: 1px solid #d9ecff; border-radius: 999px; padding: 8px 12px; display:flex; align-items:center; gap:8px; cursor:pointer; }
+    .overlay-back:hover { background:#d9ecff; }
+
+    /* ------------------------------------------------------------
+       TEMAS POR MES (FONDOS)
+       ------------------------------------------------------------ */
+    /* Se aplica al .calendario-bg vía JS según el mes */
+
+    /* ------------------------------------------------------------
+       RESPONSIVE / MEDIA QUERIES
+       ------------------------------------------------------------ */
+    @media (max-width: 1024px) {
+      .agenda { width: min(60vw, 420px); }
+      .cal-main { grid-template-columns: 1fr; }
+      .side-panel { border-left: none; border-top:1px solid #eef2f7; }
+    }
+
+    @media (max-width: 640px) {
+      .agenda { width: min(98vw, 420px); }
+      .cal-grid { gap: 4px; grid-auto-rows: minmax(54px, 1fr); padding: 4px; }
+      .cal-dia { min-height: 54px; font-size: .95rem; }
+      .chip { display:none; }
+      .calendario-content { padding: 0; border-radius: 8px; }
+      .cal-header { padding: 8px 4px 4px 4px; }
+      .side-panel { padding: 6px; }
+    }
+  
+/* ====== CALENDAR PRO (Mes/Semana/Día + horarios + notifs) ====== */
+.calpro-bar{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin:8px 6px 0; }
+.calpro-btn{ border:1px solid #e5e7eb; background:#fff; padding:6px 10px; border-radius:10px; font-weight:700; cursor:pointer; }
+.calpro-btn.active{ background:#111; color:#fff; border-color:#111; }
+.calpro-left,.calpro-right{ display:flex; gap:6px; align-items:center; }
+.calpro-badge{ font-size:.78rem; padding:.5px 6px; border-radius: 999px; background:#eef2ff; border:1px solid #e0e7ff; color:#1e40af; }
+
+/* Semana/Día grid */
+#calGrid.calpro-week, #calGrid.calpro-day{ display:grid; }
+#calGrid.calpro-week{ grid-template-columns: 72px repeat(7, 1fr); }
+#calGrid.calpro-day{ grid-template-columns: 72px 1fr; }
+.calpro-hour{ border-top:1px dashed #e5e7eb; min-height:44px; position:relative; font-size:.78rem; }
+.calpro-hour-label{ position:sticky; left:0; font-weight:700; color:#6b7280; padding:6px 4px; }
+.calpro-slot{ border-top:1px dashed #f1f5f9; min-height:44px; position:relative; cursor: pointer; }
+.calpro-event{ position:absolute; left:6px; right:6px; border-radius:10px; border:1px solid #c7d2fe; background:#eef2ff; padding:6px 8px; font-size:.82rem; overflow:hidden; }
+.calpro-event.dragging{ opacity:.6; }
+.calpro-colhead{ font-weight:800; padding:8px; border-bottom:1px solid #e5e7eb; background:#fafafa; position:sticky; top:0; z-index:1; }
+.calpro-today{ background: linear-gradient(180deg, rgba(34,197,94,0.08), transparent 60%); }
+.calpro-now{ position:absolute; left:0; right:0; height:2px; background:#ef4444; box-shadow: 0 0 0 1px #ef4444; pointer-events:none; }
+.calpro-now-dot{ position:absolute; left:-4px; top:-3px; width:8px; height:8px; border-radius:50%; background:#ef4444; }
+.calpro-mini{ margin-top:8px; font-size:.84rem; color:#4b5563; }
+
+/* Modal editor de eventos */
+
+#eventEditorBackdrop{ position: fixed; inset:0; background: rgba(16,18,27,.45); backdrop-filter: blur(2px); display:flex; align-items:center; justify-content:center; z-index:9999; }
+#eventEditor{ width:min(640px, 95vw); background:#fff; border-radius:16px; border:1px solid #e5e7eb; box-shadow: 0 20px 60px rgba(0,0,0,.18); padding:16px; }
+#eventEditor h3{ margin:0 0 6px 0; font-size:1.1rem; }
+.ee-row{ display:flex; gap:10px; margin-top:8px; }
+.ee-row > label{ display:flex; flex-direction:column; gap:4px; flex:1; font-size:.9rem; }
+.ee-row input, .ee-row textarea{ border:1px solid #dfe3ea; border-radius:10px; padding:8px; }
+.ee-actions{ display:flex; justify-content:space-between; gap:8px; margin-top:12px; }
+.ee-actions-right{ display:flex; gap:8px; }
+.ee-btn{ padding:8px 12px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; font-weight:700; }
+.ee-btn.primary{ background:#111; color:#fff; border-color:#111; }
+
+
+</style>
 </head>
+
 <body>
 
-<!-- ===== Login (IDs preservados; la lógica Firebase se mantiene externa) ===== -->
+
+  
+<!-- Pantalla de login (mejorada, sin tocar la lógica de Firebase) -->
 <div id="loginModal" class="login-wrapper">
   <div class="login-container">
+    <!-- Columna izquierda (mensaje de bienvenida) -->
     <div class="login-left">
       <h1>Bienvenido<br>de nuevo</h1>
-      <p>Accede a tu <strong>Agenda + Calendario</strong> para planificar tu día con notas y eventos.</p>
+      <p>Accede a tu <strong>Agenda + Calendario</strong> para planificar tu día con notas, eventos y stickers.</p>
       <div class="social-icons">
-        <a href="#" aria-label="Facebook" title="Facebook">f</a>
-        <a href="#" aria-label="X/Twitter" title="X/Twitter">x</a>
-        <a href="#" aria-label="Instagram" title="Instagram">i</a>
-        <a href="#" aria-label="YouTube" title="YouTube">y</a>
+        <a href="#" aria-label="Facebook" title="Facebook"></a>
+        <a href="#" aria-label="X/Twitter" title="X/Twitter"></a>
+        <a href="#" aria-label="Instagram" title="Instagram"></a>
+        <a href="#" aria-label="YouTube" title="YouTube"></a>
       </div>
     </div>
+
+    <!-- Columna derecha (auth) -->
     <div class="login-right">
       <h2 id="authTitle">Iniciar sesión</h2>
+
+      <!-- Formulario de LOGIN (se mantiene el id y campos originales) -->
       <form id="manualLoginForm" class="login-form" autocomplete="on">
         <input id="loginEmail" type="email" placeholder="Correo electrónico" autocomplete="username" required />
         <input id="loginPassword" type="password" placeholder="Contraseña" autocomplete="current-password" required />
         <div class="remember">
-          <input type="checkbox" id="rememberMe"><label for="rememberMe">Recuérdame</label>
+          <input type="checkbox" id="rememberMe">
+          <label for="rememberMe">Recuérdame</label>
         </div>
         <button id="manualLoginBtn" type="submit">Entrar</button>
       </form>
+
+      <!-- Formulario de REGISTRO (nuevo) -->
       <form id="registerForm" class="login-form" style="display:none;">
         <input id="registerEmail" type="email" placeholder="Correo electrónico" autocomplete="username" required />
         <input id="registerPassword" type="password" placeholder="Contraseña (mín. 6 caracteres)" required />
         <input id="registerPassword2" type="password" placeholder="Repite la contraseña" required />
         <button id="registerBtn" type="submit">Crear cuenta</button>
       </form>
+
       <button id="modalLoginGoogle" class="google-btn">
         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google"/> Continuar con Google
       </button>
+
       <p class="switch-auth" id="switchToRegister">¿No tienes cuenta? <a href="#" id="toRegister">Crear una cuenta</a></p>
       <p class="switch-auth" id="switchToLogin" style="display:none;">¿Ya tienes cuenta? <a href="#" id="toLogin">Iniciar sesión</a></p>
+
       <div id="loginError" class="login-error" role="alert" aria-live="polite"></div>
     </div>
   </div>
 </div>
 
-<!-- ===== App ===== -->
-<div class="stage" id="mainApp" style="display:none;">
-  <div class="agenda" id="agenda">
-    <div class="tapa" id="tapa" role="button" aria-pressed="false" tabindex="0" aria-label="Abrir agenda">
-      <div class="lomo" aria-hidden="true"></div>
-      <div class="banda" id="bandaAno">2025</div>
-      <div class="cara">
-        <div class="mes-portada" id="mesPortada"></div>
-        <div class="dia-wrap"><div class="dia-portada" id="diaPortada"></div></div>
-        <div class="hora-actual" id="horaActual"></div>
+<style>
+/* --- Estilos del login modernizado --- */
+.login-wrapper{
+  position:fixed; inset:0; z-index:99999;
+  background: url('fondopantalla1.png') center/cover no-repeat;
+  display:flex; align-items:center; justify-content:center;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+.login-container{
+  width:min(980px,95vw);
+  background: rgba(255,255,255,0.92);
+  display:grid; grid-template-columns: 1fr 1fr;
+  border-radius: 18px; overflow:hidden;
+  box-shadow: 0 16px 60px rgba(0,0,0,.35);
+}
+.login-left{
+  background: linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,.35)), url('fondopantalla1.png') center/cover no-repeat;
+  color:#fff; padding: 46px 38px; display:flex; flex-direction:column; justify-content:center;
+}
+.login-left h1{ font-size: 2.6rem; line-height:1.05; margin:0 0 14px 0; }
+.login-left p{ margin:0; font-size:1.02rem; opacity:.95; }
+.social-icons{ margin-top: 26px; display:flex; gap:12px; }
+.social-icons a{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:36px; height:36px; border-radius:50%;
+  background: rgba(255,255,255,.14);
+  color:#fff; text-decoration:none; font-family:"Font Awesome 5 Free","Font Awesome 5 Brands","Segoe UI Symbol",sans-serif;
+}
+.login-right{ padding:42px; display:flex; flex-direction:column; justify-content:center; }
+.login-right h2{ margin:0 0 14px 0; color:#222; font-size:1.6rem; }
+.login-form{ display:flex; flex-direction:column; gap:14px; }
+.login-form input{
+  padding:12px; border-radius:10px; border:1px solid #d6d6d6; font-size:1rem; width:100%; background:#fff;
+}
+.login-form button{
+  padding:12px; border-radius:10px; border:none; background:#2196f3; color:#fff; font-weight:800; cursor:pointer;
+  box-shadow: 0 6px 18px rgba(33,150,243,.25); transition: transform .06s, background .2s;
+}
+.login-form button:active{ transform: translateY(1px); }
+.remember{ display:flex; align-items:center; gap:8px; font-size:.92rem; color:#555; }
+.google-btn{
+  margin-top: 14px; display:inline-flex; align-items:center; gap:10px;
+  background:#fffbe7; border:1.5px solid #f9a825; color:#2d2d6e;
+  font-weight:700; padding:12px 16px; border-radius:10px; cursor:pointer;
+}
+.google-btn img{ width:24px; height:24px; }
+.switch-auth{ margin: 14px 0 0 0; font-size:.95rem; color:#555; }
+.switch-auth a{ color:#2196f3; text-decoration:none; font-weight:700; }
+.login-error{ margin-top:12px; min-height:22px; color:#d32f2f; font-size:.95rem; }
+
+@media (max-width: 780px){
+  .login-container{ grid-template-columns: 1fr; }
+  .login-left{ display:none; }
+}
+</style>
+
+  <div class="stage" aria-label="Agenda 3D con calendario" id="mainApp" style="display:none;">
+    <div class="agenda" id="agenda">
+      <!-- Portada -->
+      <div class="tapa" id="tapa" role="button" aria-pressed="false" tabindex="0" aria-label="Abrir agenda">
+        <div class="lomo" aria-hidden="true"></div>
+        <div class="banda" id="bandaAno">2025</div>
+        <div class="cara">
+          <div class="tag">HOY</div>
+          <h3 class="mes-portada" id="mesPortada"></h3>
+          <div class="dia-wrap"><h1 class="dia-portada" id="diaPortada"></h1></div>
+          <div class="hora-actual" id="horaActual" aria-label="Hora actual" style="margin-top:8px;font-size:1.25rem;font-weight:500;color:#b2e0f7;text-shadow:0 1px 0 #1116;letter-spacing:.04em;"></div>
+    <style>
+    .hora-actual {
+      font-family: 'Segoe UI Mono', 'Consolas', monospace;
+      font-size: 1.18rem;
+      color: #b2e0f7;
+      text-shadow: 0 1px 4px #1116;
+      margin-top: 8px;
+      letter-spacing: .04em;
+      user-select: none;
+      transition: color .2s;
+    }
+    </style>
+        </div>
       </div>
-    </div>
-    <div class="indice" aria-live="polite">
-      <div class="indice-content" id="indiceContent">
-        <h2>ÍNDICE</h2>
-        <table class="indice-table" id="tablaMeses" aria-label="Tabla de meses">
-          <tr><td data-mes="0">01-ENERO</td><td data-mes="6">07-JULIO</td></tr>
-          <tr><td data-mes="1">02-FEBRERO</td><td data-mes="7">08-AGOSTO</td></tr>
-          <tr><td data-mes="2">03-MARZO</td><td data-mes="8">09-SEPTIEMBRE</td></tr>
-          <tr><td data-mes="3">04-ABRIL</td><td data-mes="9">10-OCTUBRE</td></tr>
-          <tr><td data-mes="4">05-MAYO</td><td data-mes="10">11-NOVIEMBRE</td></tr>
-          <tr><td data-mes="5">06-JUNIO</td><td data-mes="11">12-DICIEMBRE</td></tr>
-        </table>
-        <div class="indice-row-actions">
-          <button class="indice-flecha-btn" id="btnVolverPortada">Portada</button>
-          <button class="indice-btn" id="btnAbrirCalendarioActual">Abrir mes actual</button>
+
+      <!-- Índice (parte trasera) -->
+      <div class="indice" aria-live="polite">
+        <div class="indice-bg" aria-hidden="true">
+          <svg viewBox="0 0 500 700" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="bg1" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#b2f0f7" stop-opacity="0.7"/>
+                <stop offset="100%" stop-color="#e0f7fa" stop-opacity="0.3"/>
+              </linearGradient>
+              <linearGradient id="bg2" x1="1" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#b2e0f7" stop-opacity="0.5"/>
+                <stop offset="100%" stop-color="#e0f7fa" stop-opacity="0.1"/>
+              </linearGradient>
+            </defs>
+            <path d="M0,0 Q100,80 250,40 T500,0 V700 H0 Z" fill="url(#bg1)"/>
+            <path d="M500,700 Q400,620 250,660 T0,700 V0 H500 Z" fill="url(#bg2)"/>
+            <circle cx="420" cy="80" r="30" fill="#b2f0f7" fill-opacity="0.25"/>
+            <circle cx="60" cy="620" r="22" fill="#b2e0f7" fill-opacity="0.18"/>
+            <circle cx="120" cy="120" r="12" fill="#b2e0f7" fill-opacity="0.18"/>
+            <circle cx="400" cy="600" r="14" fill="#b2e0f7" fill-opacity="0.18"/>
+          </svg>
+        </div>
+        <div class="indice-content" id="indiceContent">
+          <h2>ÍNDICE</h2>
+          <table class="indice-table" id="tablaMeses" aria-label="Tabla de meses">
+            <tr>
+              <td data-mes="0">01-ENERO</td><td data-mes="6">07-JULIO</td>
+            </tr>
+            <tr>
+              <td data-mes="1">02-FEBRERO</td><td data-mes="7">08-AGOSTO</td>
+            </tr>
+            <tr>
+              <td data-mes="2">03-MARZO</td><td data-mes="8">09-SEPTIEMBRE</td>
+            </tr>
+            <tr>
+              <td data-mes="3">04-ABRIL</td><td data-mes="9">10-OCTUBRE</td>
+            </tr>
+            <tr>
+              <td data-mes="4">05-MAYO</td><td data-mes="10">11-NOVIEMBRE</td>
+            </tr>
+            <tr>
+              <td data-mes="5">06-JUNIO</td><td data-mes="11">12-DICIEMBRE</td>
+            </tr>
+          </table>
+          <div class="indice-row-actions">
+            <button class="indice-flecha-btn" id="btnVolverPortada" title="Volver a portada" aria-label="Volver a portada">
+              <svg width="24" height="24" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <circle cx="14" cy="14" r="14" fill="#e0f7fa"/>
+                <path d="M16.5 20L10.5 14L16.5 8" stroke="#2d2d6e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Portada
+            </button>
+            <button class="indice-btn" id="btnAbrirCalendarioActual">Abrir mes actual</button>
+          </div>
         </div>
       </div>
     </div>
   </div>
-</div>
 
-<!-- ===== Calendario Overlay ===== -->
-<div class="calendario" id="overlayCal" aria-hidden="true" role="dialog" aria-modal="true">
-  <div class="calendario-bg" id="overlayBg" aria-hidden="true"></div>
-  <div class="calendario-content" role="document">
-    <div class="cal-header">
-      <button class="calendario-nav-btn" id="btnMesAnterior" title="Mes anterior" aria-label="Mes anterior">&#x276E;</button>
-      <h2 id="calTitulo">MES AÑO</h2>
-      <button class="calendario-nav-btn" id="btnMesSiguiente" title="Mes siguiente" aria-label="Mes siguiente">&#x276F;</button>
-      <div class="toolbar">
-        <button class="tool-btn" id="btnHoy">Hoy</button>
-        <button class="tool-btn" id="btnLimpiarMes">Limpiar mes</button>
-      </div>
-    </div>
-
-    <div class="calpro-bar" id="calProBar" role="toolbar" aria-label="Controles de calendario">
-      <div class="calpro-left">
-        <button class="calpro-btn" id="btnModeMes" aria-pressed="true">Mes</button>
-        <button class="calpro-btn" id="btnModeSemana">Semana</button>
-        <button class="calpro-btn" id="btnModeDia">Día</button>
-      </div>
-      <div class="calpro-right">
-        <span class="calpro-badge" id="calProInfo"></span>
-        <button class="calpro-btn" id="btnPrev" title="Anterior">◀</button>
-        <button class="calpro-btn" id="btnNext" title="Siguiente">▶</button>
-        <button class="calpro-btn" id="btnNotif" title="Activar notificaciones">🔔</button>
-      </div>
-    </div>
-
-    <div class="cal-main">
-      <div class="cal-grid-wrap">
-        <div class="cal-grid" id="calGrid" role="grid" aria-readonly="true"></div>
-      </div>
-      <aside class="side-panel" aria-live="polite">
-        <h3 id="sideTitulo">Día —</h3>
-        <textarea class="nota" id="notaDia" placeholder="Escribe una nota para este día..."></textarea>
-        <div class="row">
-          <button class="btn-guardar" id="btnGuardarNota">Guardar</button>
-          <button class="btn-borrar" id="btnBorrarNota">Borrar</button>
+  <!-- Overlay del calendario -->
+  <div class="calendario" id="overlayCal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="calendario-bg" id="overlayBg" aria-hidden="true"></div>
+    <div class="calendario-content" role="document">
+      <div class="cal-header">
+        <button class="calendario-nav-btn" id="btnMesAnterior" title="Mes anterior" aria-label="Mes anterior">&#x276E;</button>
+        <h2 id="calTitulo">MES AÑO</h2>
+        <button class="calendario-nav-btn" id="btnMesSiguiente" title="Mes siguiente" aria-label="Mes siguiente">&#x276F;</button>
+        <div class="toolbar" style="margin-left:auto">
+          <button class="tool-btn" id="btnHoy">Hoy</button>
+          <button class="tool-btn" id="btnLimpiarMes">Limpiar mes</button>
         </div>
-        <div class="row">
-          <button class="tool-btn" id="btnToggleEvento">Añadir/Quitar evento</button>
-          <button class="tool-btn" id="btnToggleSticker">Añadir/Quitar sticker</button>
-        </div>
-      </aside>
-    </div>
+      </div>
 
-    <button class="overlay-back" id="btnVolverIndice" title="Volver al índice" aria-label="Volver al índice">&#x2B05; Volver</button>
+      
+<div class="calpro-bar" id="calProBar" role="toolbar" aria-label="Controles de calendario">
+  <div class="calpro-left">
+    <button class="calpro-btn" id="btnModeMes" aria-pressed="true">Mes</button>
+    <button class="calpro-btn" id="btnModeSemana">Semana</button>
+    <button class="calpro-btn" id="btnModeDia">Día</button>
+  </div>
+  <div class="calpro-right">
+    <span class="calpro-badge" id="calProInfo"></span>
+    <button class="calpro-btn" id="btnPrev" title="Anterior">◀</button>
+    <button class="calpro-btn" id="btnNext" title="Siguiente">▶</button>
+    <button class="calpro-btn" id="btnNotif" title="Activar notificaciones">🔔</button>
   </div>
 </div>
+<div class="cal-main">
+        <div class="cal-grid-wrap">
+          <div class="cal-grid" id="calGrid" role="grid" aria-readonly="true"></div>
+        </div>
+        <aside class="side-panel" aria-live="polite">
+          <h3 id="sideTitulo">Día —</h3>
+          <textarea class="nota" id="notaDia" placeholder="Escribe una nota para este día..."></textarea>
+          <div class="row">
+            <button class="btn-guardar" id="btnGuardarNota">Guardar</button>
+            <button class="btn-borrar" id="btnBorrarNota">Borrar</button>
+          </div>
+          <div class="row">
+            <button class="tool-btn" id="btnToggleEvento">Añadir/Quitar evento</button>
+            <button class="tool-btn" id="btnToggleSticker">Añadir/Quitar sticker</button>
+          </div>
+        </aside>
+      </div>
 
-<!-- ===== Templates ===== -->
+      <button class="overlay-back" id="btnVolverIndice" title="Volver al índice" aria-label="Volver al índice">&#x2B05; Volver</button>
+    </div>
+  </div>
+
+  <template id="tplNotaModal">
+    <div class="nota-modal" role="dialog" aria-modal="true" aria-labelledby="notaTitle">
+      <header>
+        <h4 id="notaTitle">Nota del <span class="nota-dia-label"></span></h4>
+        <button class="btn soft" data-close>Esc</button>
+      </header>
+      <div class="content">
+        <textarea class="nota-text"></textarea>
+      </div>
+      <footer>
+        <button class="btn soft" data-cancel>Cancelar</button>
+        <button class="btn primary" data-save>Guardar</button>
+      </footer>
+    </div>
+  </template>
+
+  <script>
+    // =============================================================
+    // UTILIDADES
+    // =============================================================
+    const $ = (q, root=document) => root.querySelector(q);
+    const $$ = (q, root=document) => Array.from(root.querySelectorAll(q));
+
+    const mesesN = [
+      'Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
+    ];
+    const diasCorto = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+
+    const now = new Date();
+    const ANYO = now.getFullYear();
+
+    // ✨ NUEVO: Exportar funciones de Firestore al window para el script principal ✨
+window.firebaseFirestore = {
+  doc: null,
+  getDoc: null,
+  setDoc: null,
+  updateDoc: null
+};
+
+// =============================================================
+// GESTIÓN DE DATOS (Firestore)
+// =============================================================
+
+// Variables locales que tus funciones de calendario usarán internamente.
+// Serán sincronizadas con las variables `window.user...` que maneja el script de Firebase.
+let notas = {};
+let eventos = {};
+let stickers = {};
+let eventosPro = {}; // eventos detallados (titulo, horaInicio, horaFin, nota)
+
+// Referencias a las instancias de Firebase (se inicializan al llamar actualizarCalendarioUI)
+// Función clave para las operaciones de calendario
+function keyDay(mes, dia) {
+  return mes + '-' + dia;
+}
+let db = null;
+let currentUserData = null;
+  let mesVisible = new Date().getMonth();
+  let diaActivo = new Date().getDate();
+
+// ✨ Sincronización entre las variables locales y las globales de `window` ✨
+// Esto es CRUCIAL. Cada vez que `window.userNotes`, `window.userEvents`, etc.
+// se actualicen (por ejemplo, al iniciar sesión o cargar datos), estas propiedades
+// setearán tus variables `let notas`, `let eventos`, `let stickers` y luego
+// llamarán a `actualizarCalendarioUI` para que la interfaz se redibuje.
+Object.defineProperty(window, 'userNotes', {
+    get: function() { return notas; },
+    set: function(val) { notas = val; window.actualizarCalendarioUI(); }
+});
+Object.defineProperty(window, 'userEvents', {
+    get: function() { return eventos; },
+    set: function(val) { eventos = val; window.actualizarCalendarioUI(); }
+});
+
+Object.defineProperty(window, 'userEventsPro', {
+    get: function() { return eventosPro; },
+    set: function(val) { eventosPro = val || {}; window.actualizarCalendarioUI(); }
+});
+Object.defineProperty(window, 'userStickers', {
+    get: function() { return stickers; },
+    set: function(val) { stickers = val; window.actualizarCalendarioUI(); }
+});
+
+// ✨ Función para actualizar la UI completa después de cargar/cambiar datos ✨
+// Esta función se exporta al objeto `window` para que el script `type="module"` pueda llamarla.
+window.actualizarCalendarioUI = function() {
+    // Asegúrate de que las variables locales `db` y `currentUserData` estén actualizadas
+    // con las instancias de Firebase que vienen del script `type="module"`.
+    db = window.db;
+    currentUserData = window.currentUserData;
+
+    // Reconstruye el mes visible con los datos actuales
+    if (mesVisible !== null) {
+        construirMes(mesVisible);
+    } else if (currentUserData) {
+        // Si no hay un mes visible (ej. justo al cargar la página) y el usuario está logeado,
+        // abrimos el mes actual por defecto para que vea sus datos.
+        abrirCalendario(now.getMonth());
+    } else {
+        // Si no hay usuario logeado y no hay mes visible, al menos muestra el mes actual vacío.
+        construirMes(now.getMonth());
+    }
+    actualizarSidePanel(); // Asegura que el panel lateral muestre la nota correcta del día activo.
+};
+
+// Este listener asegura que `actualizarCalendarioUI` se llame al cargar la página
+// una vez que el DOM esté completamente cargado y las variables de Firebase puedan estar disponibles.
+document.addEventListener('DOMContentLoaded', () => {
+    window.actualizarCalendarioUI();
+});
+
+// ✨ FUNCIÓN AUXILIAR PARA GUARDAR DATOS EN FIRESTORE ✨
+// 'campo' será 'notas', 'eventos' o 'stickers'
+// 'valor' será el mapa completo (objeto) de ese campo
+async function guardarDatosUsuarioEnFirestore(campo, valor) {
+    // Solo guarda si hay un usuario logeado
+    if (!currentUserData || !currentUserData.uid) {
+        console.warn(`No hay usuario logeado. El campo '${campo}' no se guardará en Firestore.`);
+        // Opcional: podrías guardar en localStorage aquí para usuarios no logeados si lo deseas
+        return;
+    }
+
+    // Asegúrate de que la instancia de Firestore (db) esté disponible
+    if (!db) {
+        console.error("La instancia de Firestore (db) no está disponible. Asegúrate de que el script type=module se cargue correctamente.");
+        return;
+    }
+
+    const { doc, setDoc } = window.firebaseFirestore; // Obtenemos las funciones de Firestore
+    const userDocRef = doc(db, "users", currentUserData.uid); // Referencia al documento del usuario
+
+    try {
+        // setDoc con { merge: true } fusiona los cambios sin sobrescribir todo el documento
+        await setDoc(userDocRef, { [campo]: valor }, { merge: true });
+        console.log(`Campo '${campo}' guardado en Firestore para el usuario ${currentUserData.uid}.`);
+    } catch (error) {
+        console.error(`Error guardando campo '${campo}' en Firestore:`, error);
+    }
+}
+    // =============================================================
+    // PORTADA + ÍNDICE
+    // =============================================================
+    const agenda = $('#agenda');
+    const tapa = $('#tapa');
+    const bandaAno = $('#bandaAno');
+    const mesPortada = $('#mesPortada');
+    const diaPortada = $('#diaPortada');
+
+    bandaAno.textContent = ANYO;
+    mesPortada.textContent = mesesN[now.getMonth()];
+    diaPortada.textContent = now.getDate();
+    // Hora actual en portada
+    function updateHoraActual(){
+      const el = document.getElementById('horaActual');
+      if (!el) return;
+      const now = new Date();
+      // Formato: 14:05:09 (GMT+2)
+      const opts = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+      const hora = now.toLocaleTimeString(undefined, opts);
+      // Zona horaria corta
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      el.textContent = `${hora} (${tz})`;
+    }
+    updateHoraActual();
+    setInterval(updateHoraActual, 1000);
+
+    // Abrir/cerrar con click o Enter/Espacio
+    tapa.addEventListener('click', toggleAgenda);
+    tapa.addEventListener('keydown', (e)=>{
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAgenda(); }
+    });
+
+    function toggleAgenda(){
+      const abierta = agenda.classList.toggle('abierta');
+      tapa.setAttribute('aria-pressed', abierta ? 'true' : 'false');
+    }
+
+    // Resalta el mes actual en el índice
+    (function(){
+      const mesActual = now.getMonth();
+      $$('#tablaMeses td[data-mes]').forEach(td => {
+        if (+td.dataset.mes === mesActual) td.classList.add('mes-actual');
+        td.addEventListener('click', () => abrirCalendario(+td.dataset.mes));
+      });
+      $('#btnAbrirCalendarioActual').addEventListener('click', () => abrirCalendario(mesActual));
+      $('#btnVolverPortada').addEventListener('click', () => agenda.classList.remove('abierta'));
+    })();
+
+    // =============================================================
+    // CALENDARIO (OVERLAY)
+    // =============================================================
+    const overlay = $('#overlayCal');
+    const overlayBg = $('#overlayBg');
+    const calTitulo = $('#calTitulo');
+    const grid = $('#calGrid');
+
+    const btnPrev = $('#btnMesAnterior');
+    const btnNext = $('#btnMesSiguiente');
+    const btnVolverIndice = $('#btnVolverIndice');
+    const btnHoy = $('#btnHoy');
+    const btnLimpiarMes = $('#btnLimpiarMes');
+
+    const sideTitulo = $('#sideTitulo');
+    const notaTextarea = $('#notaDia');
+    const btnGuardarNota = $('#btnGuardarNota');
+    const btnBorrarNota = $('#btnBorrarNota');
+    const btnToggleEvento = $('#btnToggleEvento');
+    const btnToggleSticker = $('#btnToggleSticker');
+
+    function abrirCalendario(mes){
+      mesVisible = mes;
+      construirMes(mes);
+      aplicarTemaMes(mes);
+      overlay.classList.add('visible');
+      overlay.setAttribute('aria-hidden', 'false');
+      // Seleccionar hoy si cae en el mes
+      if (mes === now.getMonth()) {
+        setTimeout(()=>{
+          const hoy = grid.querySelector(`[data-dia="${now.getDate()}"]`);
+          if (hoy) seleccionarDia(mes, now.getDate(), hoy);
+        }, 0);
+      } else {
+        // Seleccionar el primer día
+        const first = grid.querySelector('[data-dia]');
+        if (first) seleccionarDia(mes, +first.dataset.dia, first);
+      }
+    }
+
+    function cerrarCalendario(){
+      overlay.classList.remove('visible');
+      overlay.setAttribute('aria-hidden', 'true');
+    }
+
+    btnPrev.addEventListener('click', ()=> navegarMes(-1));
+    btnNext.addEventListener('click', ()=> navegarMes(+1));
+    btnVolverIndice.addEventListener('click', cerrarCalendario);
+    btnHoy.addEventListener('click', ()=> abrirCalendario(now.getMonth()));
+    btnLimpiarMes.addEventListener('click', ()=> limpiarMesConfirm());
+
+    document.addEventListener('keydown', (e)=>{
+      if (!overlay.classList.contains('visible')) return;
+      if (e.key === 'Escape') cerrarCalendario();
+    });
+
+    function navegarMes(delta){
+      if (mesVisible === null) return;
+      mesVisible = (mesVisible + delta + 12) % 12;
+      abrirCalendario(mesVisible);
+    }
+
+    function construirMes(mes){
+      const anyo = ANYO;
+      const primerDia = new Date(anyo, mes, 1).getDay();
+      const diasEnMes = new Date(anyo, mes + 1, 0).getDate();
+
+      calTitulo.textContent = `${mesesN[mes].toUpperCase()} ${anyo}`;
+
+      // Transición fade-out/fade-in
+      grid.style.opacity = 0;
+      setTimeout(()=>{
+        // Cabeceras de semana
+        let frag = document.createDocumentFragment();
+        diasCorto.forEach(d => {
+          const h = document.createElement('div');
+          h.className = 'cal-dia-header';
+          h.textContent = d;
+          h.setAttribute('role', 'columnheader');
+          frag.appendChild(h);
+        });
+
+        // Celdas vacías anteriores (offset)
+        for (let i=0;i<primerDia;i++) {
+          const v = document.createElement('div');
+          v.setAttribute('aria-hidden', 'true');
+          frag.appendChild(v);
+        }
+
+        // Días
+        for (let d=1; d<=diasEnMes; d++){
+          const cell = document.createElement('div');
+          cell.className = 'cal-dia';
+          cell.dataset.dia = d;
+          cell.setAttribute('role','gridcell');
+          cell.setAttribute('tabindex','0');
+
+          // Marcar hoy
+          if (mes === now.getMonth() && d === now.getDate()) cell.classList.add('cal-dia-hoy');
+
+          const num = document.createElement('div');
+          num.className = 'cal-dia-num';
+          num.textContent = d;
+          cell.appendChild(num);
+
+          // Chips de evento / sticker
+          const k = keyDay(mes, d);
+          if (eventos[k]) {
+            const chip = document.createElement('div');
+            chip.className = 'chip chip-event';
+            chip.textContent = 'Evento';
+            cell.appendChild(chip);
+          }
+          if (stickers[k]) {
+            const chip = document.createElement('div');
+            chip.className = 'chip chip-sticker';
+            chip.textContent = '★';
+            cell.appendChild(chip);
+          }
+
+          // Listeners
+          cell.addEventListener('click', ()=> seleccionarDia(mes, d, cell));
+          cell.addEventListener('keydown', (e)=>{
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); seleccionarDia(mes, d, cell); }
+            // Navegación con flechas
+            if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
+              e.preventDefault(); moverFoco(cell, e.key);
+            }
+          });
+          cell.addEventListener('contextmenu', (e)=>{
+            e.preventDefault();
+            mostrarContext(cell, mes, d, e.clientX, e.clientY);
+          });
+
+          frag.appendChild(cell);
+        }
+
+        grid.innerHTML = '';
+        grid.appendChild(frag);
+        grid.style.opacity = 1;
+      }, 180);
+    }
+
+    function moverFoco(cell, key){
+      const cells = $$('#calGrid .cal-dia');
+      const idx = cells.indexOf(cell);
+      const cols = 7;
+      let nextIdx = idx;
+      if (key === 'ArrowRight') nextIdx = idx + 1;
+      if (key === 'ArrowLeft')  nextIdx = idx - 1;
+      if (key === 'ArrowDown')  nextIdx = idx + cols;
+      if (key === 'ArrowUp')    nextIdx = idx - cols;
+      nextIdx = Math.max(0, Math.min(cells.length - 1, nextIdx));
+      cells[nextIdx]?.focus();
+    }
+
+    function seleccionarDia(mes, dia, cell){
+      $$('#calGrid .cal-dia').forEach(c => c.classList.remove('selected'));
+      cell.classList.add('selected');
+      diaActivo = { mes, dia };
+      actualizarSidePanel();
+    }
+
+    function actualizarSidePanel(){
+      if (!diaActivo) return;
+      const {mes, dia} = diaActivo;
+      sideTitulo.textContent = `${dia} de ${mesesN[mes]}`;
+      const k = keyDay(mes, dia);
+      notaTextarea.value = (notas[k] || '');
+    }
+
+    // Side panel actions
+    btnGuardarNota.addEventListener('click', ()=>{
+      (async () => {
+        if (!diaActivo) return;
+        const k = keyDay(diaActivo.mes, diaActivo.dia);
+        const val = notaTextarea.value.trim();
+        if (val) notas[k] = val; else delete notas[k];
+        await guardarDatosUsuarioEnFirestore('notas', notas);
+        btnGuardarNota.textContent = 'Guardado ✓';
+        setTimeout(()=> btnGuardarNota.textContent = 'Guardar', 900);
+      })();
+    });
+
+    btnBorrarNota.addEventListener('click', ()=>{
+      (async () => {
+        if (!diaActivo) return;
+        const k = keyDay(diaActivo.mes, diaActivo.dia);
+        delete notas[k];
+        await guardarDatosUsuarioEnFirestore('notas', notas);
+        notaTextarea.value = '';
+      })();
+    });
+
+    btnToggleEvento.addEventListener('click', ()=>{
+      (async () => {
+        if (!diaActivo) return;
+        const {mes, dia} = diaActivo; const k = keyDay(mes, dia);
+        if (eventos[k]) delete eventos[k]; else eventos[k] = true;
+        await guardarDatosUsuarioEnFirestore('eventos', eventos);
+        construirMes(mes);
+        const cell = grid.querySelector(`[data-dia="${dia}"]`); if (cell) seleccionarDia(mes, dia, cell);
+      })();
+    });
+
+    btnToggleSticker.addEventListener('click', ()=>{
+      (async () => {
+        if (!diaActivo) return;
+        const {mes, dia} = diaActivo; const k = keyDay(mes, dia);
+        if (stickers[k]) delete stickers[k]; else stickers[k] = true;
+        await guardarDatosUsuarioEnFirestore('stickers', stickers);
+        construirMes(mes);
+        const cell = grid.querySelector(`[data-dia="${dia}"]`); if (cell) seleccionarDia(mes, dia, cell);
+      })();
+    });
+
+    function limpiarMesConfirm(){
+      (async () => {
+        if (mesVisible === null) return;
+        const ok = confirm('¿Seguro que quieres limpiar notas, eventos y stickers de este mes?');
+        if (!ok) return;
+        const newNotas = {};
+        for (const k in notas) { if (!k.startsWith(mesVisible + '-')) { newNotas[k] = notas[k]; } }
+        notas = newNotas;
+        const newEventos = {};
+        for (const k in eventos) { if (!k.startsWith(mesVisible + '-')) { newEventos[k] = eventos[k]; } }
+        eventos = newEventos;
+        const newStickers = {};
+        for (const k in stickers) { if (!k.startsWith(mesVisible + '-')) { newStickers[k] = stickers[k]; } }
+        stickers = newStickers;
+        await Promise.all([
+            guardarDatosUsuarioEnFirestore('notas', notas),
+            guardarDatosUsuarioEnFirestore('eventos', eventos),
+            guardarDatosUsuarioEnFirestore('stickers', stickers)
+        ]);
+        actualizarSidePanel();
+      })();
+    }
+
+    // Menú contextual para añadir/quitar evento/sticker + abrir nota modal
+    let ctxEl = null;
+    function mostrarContext(cell, mes, dia, x, y){
+      ocultarContext();
+      const k = keyDay(mes, dia);
+      ctxEl = document.createElement('div');
+      ctxEl.className = 'ctx';
+      ctxEl.style.left = x + 'px';
+      ctxEl.style.top = y + 'px';
+
+      const btnNota = document.createElement('button');
+      btnNota.textContent = 'Editar nota…';
+      btnNota.addEventListener('click', ()=>{ ocultarContext(); abrirNotaModal(mes, dia); });
+
+      const btnEvt = document.createElement('button');
+      btnEvt.textContent = eventos[k] ? 'Quitar evento' : 'Añadir evento';
+      btnEvt.addEventListener('click', async ()=>{
+        if (eventos[k]) delete eventos[k]; else eventos[k] = true;
+        await guardarDatosUsuarioEnFirestore('eventos', eventos);
+        construirMes(mes);
+        const c = grid.querySelector(`[data-dia="${dia}"]`); if (c) seleccionarDia(mes, dia, c);
+        ocultarContext();
+      });
+
+      const btnSt = document.createElement('button');
+      btnSt.textContent = stickers[k] ? 'Quitar sticker' : 'Añadir sticker';
+      btnSt.addEventListener('click', async ()=>{
+        if (stickers[k]) delete stickers[k]; else stickers[k] = true;
+        await guardarDatosUsuarioEnFirestore('stickers', stickers);
+        construirMes(mes);
+        const c = grid.querySelector(`[data-dia="${dia}"]`); if (c) seleccionarDia(mes, dia, c);
+        ocultarContext();
+      });
+
+      const btnCancel = document.createElement('button');
+      btnCancel.textContent = 'Cancelar';
+      btnCancel.addEventListener('click', ocultarContext);
+
+      ctxEl.append(btnNota, btnEvt, btnSt, btnCancel);
+      document.body.appendChild(ctxEl);
+
+      setTimeout(()=>{
+        const handler = (e)=>{ if (ctxEl && !ctxEl.contains(e.target)) ocultarContext(); };
+        document.addEventListener('mousedown', handler, { once:true });
+      }, 0);
+    }
+
+    function ocultarContext(){ if (ctxEl) { ctxEl.remove(); ctxEl = null; } }
+
+    // Modal para notas grandes
+    function abrirNotaModal(mes, dia){
+      const tpl = $('#tplNotaModal');
+      const node = tpl.content.firstElementChild.cloneNode(true);
+      const k = keyDay(mes, dia);
+      node.querySelector('.nota-dia-label').textContent = `${dia} de ${mesesN[mes]}`;
+      const txt = node.querySelector('.nota-text');
+      txt.value = notas[k] || '';
+
+      const close = ()=> node.remove();
+
+      node.querySelector('[data-close]').addEventListener('click', close);
+      node.querySelector('[data-cancel]').addEventListener('click', close);
+      node.querySelector('[data-save]').addEventListener('click', async ()=>{
+        const val = txt.value.trim();
+        if (val) notas[k] = val; else delete notas[k];
+        await guardarDatosUsuarioEnFirestore('notas', notas);
+        if (diaActivo && diaActivo.mes === mes && diaActivo.dia === dia){ notaTextarea.value = val; }
+        close();
+      });
+
+      document.body.appendChild(node);
+      txt.focus();
+
+      const keyHandler = (e)=>{ if (e.key==='Escape') { close(); document.removeEventListener('keydown', keyHandler); } };
+      document.addEventListener('keydown', keyHandler);
+    }
+
+    // =============================================================
+    // TEMAS POR MES (fondos gradiente distintas estaciones)
+    // =============================================================
+    function temaMesGradiente(m){
+      // Invierno (Dic-Ene-Feb), Primavera (Mar-Abr-May), Verano (Jun-Jul-Ago), Otoño (Sep-Oct-Nov)
+      const temas = {
+        0:  'linear-gradient(135deg, #dff7ff 0%, #b7eaff 100%)', // Ene — frío suave
+        1:  'linear-gradient(135deg, #e8f7ff 0%, #c9e8ff 100%)', // Feb
+        2:  'linear-gradient(135deg, #fff1c1 0%, #ffd280 100%)', // Mar — brotes cálidos
+        3:  'linear-gradient(135deg, #f5e5ff 0%, #cfe3ff 100%)', // Abr
+        4:  'linear-gradient(135deg, #fff8d6 0%, #ffd95a 100%)', // May
+        5:  'linear-gradient(135deg, #ffe082 0%, #ffd54f 100%)', // Jun (verano)
+        6:  'linear-gradient(135deg, #ffe082 0%, #ffb300 100%)', // Jul
+        7:  'linear-gradient(135deg, #ffd54f 0%, #ffb300 100%)', // Ago
+        8:  'linear-gradient(135deg, #c9f1ff 0%, #e7fbff 100%)', // Sep — brisa
+        9:  'linear-gradient(135deg, #ffe0b2 0%, #ffb74d 100%)', // Oct (otoño)
+        10: 'linear-gradient(135deg, #ffe082 0%, #fbc02d 100%)', // Nov
+        11: 'linear-gradient(135deg, #e0f7fa 0%, #b2e0f7 100%)', // Dic
+      };
+      return temas[m] || temas[0];
+    }
+    function aplicarTemaMes(m){ overlayBg.style.background = temaMesGradiente(m); }
+
+    // =============================================================
+    // INICIALIZACIÓN
+    // =============================================================
+    $('#btnVolverIndice').addEventListener('click', cerrarCalendario);
+
+    // Abre mes actual al cargar si quieres (comentado por defecto)
+    // abrirCalendario(now.getMonth());
+  
+
+// =============== CALENDAR PRO: vistas y eventos por hora ===============
+(function(){
+  // Estado
+  let proMode = 'mes'; // 'mes' | 'semana' | 'dia'
+  let fechaFocal = new Date();
+  const grid = document.getElementById('calGrid');
+  const calTitulo = document.getElementById('calTitulo');
+  const info = document.getElementById('calProInfo');
+
+  // Helpers de fecha
+  function fmt2(n){ return String(n).padStart(2,'0'); }
+  function keyFromDate(dt){ return (dt.getMonth()) + '-' + dt.getDate(); } // usa el mismo formato que keyDay
+  function mondayOf(d){
+    const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const day = dt.getDay(); // 0 dom ... 6 sab
+    const diff = (day === 0 ? -6 : 1 - day); // llevar a lunes
+    dt.setDate(dt.getDate() + diff);
+    return dt;
+  }
+  function addDays(d, n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+
+  // ===== Toolbar handlers =====
+  const btnMes = document.getElementById('btnModeMes');
+  const btnSem = document.getElementById('btnModeSemana');
+  const btnDia = document.getElementById('btnModeDia');
+  const btnPrev = document.getElementById('btnPrev');
+  const btnNext = document.getElementById('btnNext');
+  const btnNotif = document.getElementById('btnNotif');
+
+  function updateToolbar(){
+    [btnMes,btnSem,btnDia].forEach(b=>b.classList.remove('active'));
+    if (proMode==='mes') btnMes.classList.add('active');
+    if (proMode==='semana') btnSem.classList.add('active');
+    if (proMode==='dia') btnDia.classList.add('active');
+  }
+
+  function setMode(mode){
+    proMode = mode;
+    updateToolbar();
+    if (mode==='mes'){
+      grid.classList.remove('calpro-week','calpro-day');
+      construirMes(mesVisible);
+    } else if (mode==='semana'){
+      renderSemana();
+    } else {
+      renderDia();
+    }
+  }
+  btnMes?.addEventListener('click', ()=> setMode('mes'));
+  btnSem?.addEventListener('click', ()=> setMode('semana'));
+  btnDia?.addEventListener('click', ()=> setMode('dia'));
+
+  btnPrev?.addEventListener('click', ()=>{
+    if (proMode==='mes'){ mesVisible = (mesVisible + 11) % 12; construirMes(mesVisible); }
+    else if (proMode==='semana'){ fechaFocal = addDays(fechaFocal, -7); renderSemana(); }
+    else { fechaFocal = addDays(fechaFocal, -1); renderDia(); }
+  });
+  btnNext?.addEventListener('click', ()=>{
+    if (proMode==='mes'){ mesVisible = (mesVisible + 1) % 12; construirMes(mesVisible); }
+    else if (proMode==='semana'){ fechaFocal = addDays(fechaFocal, 7); renderSemana(); }
+    else { fechaFocal = addDays(fechaFocal, 1); renderDia(); }
+  });
+
+  // ===== Editor de eventos (crear/editar) =====
+  function abrirEditorEvento(fechaISO, evtIndex){
+    const tpl = document.getElementById('tplEventEditor'); if (!tpl) return;
+    const node = tpl.content.firstElementChild.cloneNode(true);
+    const el = node.querySelector('#eventEditor');
+    const inputTitulo = node.querySelector('#eeTitulo');
+    const inputFecha  = node.querySelector('#eeFecha');
+    const inputIni    = node.querySelector('#eeInicio');
+    const inputFin    = node.querySelector('#eeFin');
+    const inputNota   = node.querySelector('#eeNota');
+    const btnEliminar = node.querySelector('#eeEliminar');
+    const btnGuardar  = node.querySelector('#eeGuardar');
+
+    inputFecha.value = fechaISO;
+
+    const dt = new Date(fechaISO + 'T00:00');
+    const k = keyFromDate(dt);
+    const arr = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
+
+    let modo = 'nuevo';
+    if (typeof evtIndex === 'number' && arr[evtIndex]){
+      modo = 'editar';
+      const e = arr[evtIndex];
+      inputTitulo.value = e.titulo || '';
+      inputIni.value = e.inicio || '09:00';
+      inputFin.value = e.fin || '10:00';
+      inputNota.value = e.nota || '';
+      btnEliminar.style.display = '';
+      document.getElementById('eeTitle').textContent = 'Editar evento';
+    } else {
+      // por defecto, si se abrió sobre una hora, respetamos esa hora en inputIni
+    }
+
+    function cerrar(){
+      node.remove();
+      document.removeEventListener('keydown', onKey);
+    }
+    node.addEventListener('click', (e)=>{ if (e.target && e.target.hasAttribute('data-close')) cerrar(); });
+    function onKey(e){ if (e.key==='Escape'){ cerrar(); } }
+    document.addEventListener('keydown', onKey);
+
+    btnEliminar.addEventListener('click', async ()=>{
+      const list = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
+      if (typeof evtIndex === 'number' && list[evtIndex]){
+        list.splice(evtIndex, 1);
+        eventosPro[k] = list;
+        // mantener el mapa booleano legacy en sincronía
+        if (!list.length) delete eventos[k]; else eventos[k] = true;
+        await Promise.all([
+          guardarDatosUsuarioEnFirestore('eventosPro', eventosPro),
+          guardarDatosUsuarioEnFirestore('eventos', eventos)
+        ]);
+        refrescar();
+        cerrar();
+      }
+    });
+
+    btnGuardar.addEventListener('click', async ()=>{
+      const titulo = inputTitulo.value.trim() || 'Evento';
+      const inicio = inputIni.value || '09:00';
+      const fin = inputFin.value || '10:00';
+      const nota = inputNota.value.trim();
+      const e = { titulo, inicio, fin, nota };
+      const list = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
+      if (modo==='editar' && typeof evtIndex==='number' && list[evtIndex]){
+        list[evtIndex] = e;
+      } else {
+        list.push(e);
+      }
+      eventosPro[k] = list;
+      eventos[k] = true; // legacy marker para que otras partes sigan viendo que hay evento
+      await Promise.all([
+        guardarDatosUsuarioEnFirestore('eventosPro', eventosPro),
+        guardarDatosUsuarioEnFirestore('eventos', eventos)
+      ]);
+      refrescar();
+      cerrar();
+    });
+
+    // Ctrl/Cmd+Enter guarda
+    inputNota.addEventListener('keydown', (e)=>{ if ((e.ctrlKey||e.metaKey) && e.key==='Enter'){ btnGuardar.click(); } });
+
+    document.body.appendChild(node);
+  }
+
+  // ===== Render Semana/Día =====
+  function renderSemana(){
+    grid.className = grid.className.replace('calpro-day','').replace('calpro-week','').trim();
+    grid.classList.add('calpro-week');
+    // construir cabeceras
+    const mon = mondayOf(fechaFocal);
+    calTitulo.textContent = 'Semana de ' + mon.toLocaleDateString(undefined,{day:'2-digit',month:'short'});
+    info.textContent = '';
+    grid.innerHTML = '';
+
+    // fila de cabeceras
+    const headTime = document.createElement('div'); headTime.className='calpro-colhead'; headTime.textContent='';
+    grid.appendChild(headTime);
+    for(let i=0;i<7;i++){
+      const d = addDays(mon,i);
+      const h = document.createElement('div'); h.className='calpro-colhead';
+      h.textContent = d.toLocaleDateString(undefined, { weekday:'short', day:'2-digit', month:'short' });
+      if (isToday(d)) h.classList.add('calpro-today');
+      grid.appendChild(h);
+    }
+
+    // 24 filas
+    for(let hour=0; hour<24; hour++){
+      const lbl = document.createElement('div'); lbl.className='calpro-hour calpro-hour-label'; lbl.textContent = fmt2(hour)+':00';
+      grid.appendChild(lbl);
+
+      for(let i=0;i<7;i++){
+        const d = addDays(mon,i);
+        const k = keyFromDate(d);
+        const slot = document.createElement('div'); slot.className='calpro-slot calpro-hour';
+        slot.dataset.date = toISODate(d);
+        slot.dataset.hour = String(hour);
+
+        slot.addEventListener('click', ()=>{
+          const iso = slot.dataset.date;
+          abrirEditorEvento(iso);
+        });
+
+        // Render eventos de este día que caen en esta franja
+        const list = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
+        list.forEach((ev, idx)=>{
+          const [hIni,mIni] = (ev.inicio||'09:00').split(':').map(Number);
+          const [hFin,mFin] = (ev.fin||'10:00').split(':').map(Number);
+          if (hIni<=hour && hour<=hFin){
+            // Solo pintamos una vez por hora (primer slot donde aparece el bloque)
+            if (hour===hIni){
+              const durMin = (hFin*60+mFin) - (hIni*60+mIni);
+              const top = (mIni/60)*44; // px dentro del slot
+              const height = Math.max(22, (durMin/60)*44);
+              const evDiv = document.createElement('div'); evDiv.className='calpro-event';
+              evDiv.style.top = top+'px'; evDiv.style.height = height+'px';
+              evDiv.draggable = true;
+              evDiv.textContent = ev.titulo || 'Evento';
+
+              evDiv.addEventListener('dragstart', (e)=>{
+                evDiv.classList.add('dragging');
+                e.dataTransfer.setData('text/plain', JSON.stringify({date: toISODate(d), idx}));
+              });
+              evDiv.addEventListener('dragend', ()=> evDiv.classList.remove('dragging'));
+
+              slot.appendChild(evDiv);
+            }
+          }
+        });
+
+        // Drop para mover eventos
+        slot.addEventListener('dragover', (e)=> e.preventDefault());
+        slot.addEventListener('drop', async (e)=>{
+          e.preventDefault();
+          try{
+            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+            const fromKey = keyFromISO(data.date);
+            const toDateISO = slot.dataset.date;
+            const toKey = keyFromISO(toDateISO);
+            const hour = Number(slot.dataset.hour);
+            const list = Array.isArray(eventosPro[fromKey]) ? eventosPro[fromKey] : [];
+            const ev = list.splice(data.idx,1)[0];
+            if (ev){
+              // mover manteniendo duración
+              const [hIni,mIni] = (ev.inicio||'09:00').split(':').map(Number);
+              const [hFin,mFin] = (ev.fin||'10:00').split(':').map(Number);
+              const dur = (hFin*60+mFin) - (hIni*60+mIni);
+              ev.inicio = fmt2(hour)+':'+fmt2(mIni);
+              const finMin = hour*60 + mIni + dur;
+              const nh = Math.floor(finMin/60), nm = finMin%60;
+              ev.fin = fmt2(nh)+':'+fmt2(nm);
+              const toList = Array.isArray(eventosPro[toKey]) ? eventosPro[toKey] : [];
+              toList.push(ev);
+              eventosPro[toKey] = toList;
+              if (!list.length) delete eventosPro[fromKey];
+              eventos[fromKey] = (Array.isArray(eventosPro[fromKey]) && eventosPro[fromKey].length) || false;
+              eventos[toKey] = true;
+              await Promise.all([
+                guardarDatosUsuarioEnFirestore('eventosPro', eventosPro),
+                guardarDatosUsuarioEnFirestore('eventos', eventos)
+              ]);
+              renderSemana();
+            }
+          }catch(err){ console.warn(err); }
+        });
+
+        grid.appendChild(slot);
+      }
+    }
+
+    // ahora la línea de "ahora" para cada día (si la semana incluye hoy)
+    const now = new Date();
+    if (now >= mon && now <= addDays(mon,6)){
+      const h = now.getHours();
+      const m = now.getMinutes();
+      // buscar la celda del día de hoy y hora actual
+      const col = (now.getDay()===0?7:now.getDay()); // 1..7
+      const rowIndex = 1 /*header*/ + 1 /*primer hora*/ + h;
+      const nodeIndex = rowIndex*(8) + col; // 8 columnas: label + 7 días
+      const slot = grid.children[nodeIndex];
+      if (slot && slot.classList.contains('calpro-slot')){
+        const line = document.createElement('div'); line.className='calpro-now';
+        const dot = document.createElement('div'); dot.className='calpro-now-dot';
+        line.appendChild(dot);
+        line.style.top = ( (m/60)*44 )+'px';
+        slot.appendChild(line);
+      }
+    }
+  }
+
+  function renderDia(){
+    grid.className = grid.className.replace('calpro-week','').replace('calpro-day','').trim();
+    grid.classList.add('calpro-day');
+    const d = fechaFocal;
+    calTitulo.textContent = d.toLocaleDateString(undefined, { weekday:'long', day:'2-digit', month:'long' });
+    info.textContent = 'Vista día';
+    grid.innerHTML = '';
+
+    const headTime = document.createElement('div'); headTime.className='calpro-colhead'; headTime.textContent='';
+    const headDay = document.createElement('div'); headDay.className='calpro-colhead'; headDay.textContent=d.toLocaleDateString(undefined,{weekday:'short', day:'2-digit', month:'short'});
+    if (isToday(d)) headDay.classList.add('calpro-today');
+    grid.appendChild(headTime); grid.appendChild(headDay);
+
+    const k = keyFromDate(d);
+    const list = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
+
+    for(let hour=0; hour<24; hour++){
+      const lbl = document.createElement('div'); lbl.className='calpro-hour calpro-hour-label'; lbl.textContent = fmt2(hour)+':00';
+      grid.appendChild(lbl);
+
+      const slot = document.createElement('div'); slot.className='calpro-slot calpro-hour';
+      slot.dataset.date = toISODate(d);
+      slot.dataset.hour = String(hour);
+      slot.addEventListener('click', ()=> abrirEditorEvento(slot.dataset.date));
+
+      // eventos
+      list.forEach((ev, idx)=>{
+        const [hIni,mIni] = (ev.inicio||'09:00').split(':').map(Number);
+        const [hFin,mFin] = (ev.fin||'10:00').split(':').map(Number);
+        if (hIni<=hour && hour<=hFin && hour===hIni){
+          const durMin = (hFin*60+mFin) - (hIni*60+mIni);
+          const top = (mIni/60)*44; const height = Math.max(22, (durMin/60)*44);
+          const evDiv = document.createElement('div'); evDiv.className='calpro-event';
+          evDiv.style.top = top+'px'; evDiv.style.height = height+'px';
+          evDiv.draggable = true; evDiv.textContent = ev.titulo || 'Evento';
+          evDiv.addEventListener('dragstart', (e)=>{
+            evDiv.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', JSON.stringify({date: toISODate(d), idx}));
+          });
+          evDiv.addEventListener('dragend', ()=> evDiv.classList.remove('dragging'));
+          slot.appendChild(evDiv);
+        }
+      });
+
+      slot.addEventListener('dragover', (e)=> e.preventDefault());
+      slot.addEventListener('drop', async (e)=>{
+        e.preventDefault();
+        try{
+          const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+          const fromKey = keyFromISO(data.date);
+          const toKey = keyFromISO(slot.dataset.date);
+          const hour = Number(slot.dataset.hour);
+          const list = Array.isArray(eventosPro[fromKey]) ? eventosPro[fromKey] : [];
+          const ev = list.splice(data.idx,1)[0];
+          if (ev){
+            const [hIni,mIni] = (ev.inicio||'09:00').split(':').map(Number);
+            const [hFin,mFin] = (ev.fin||'10:00').split(':').map(Number);
+            const dur = (hFin*60+mFin) - (hIni*60+mIni);
+            ev.inicio = fmt2(hour)+':'+fmt2(mIni);
+            const finMin = hour*60 + mIni + dur;
+            const nh = Math.floor(finMin/60), nm = finMin%60;
+            ev.fin = fmt2(nh)+':'+fmt2(nm);
+            const toList = Array.isArray(eventosPro[toKey]) ? eventosPro[toKey] : [];
+            toList.push(ev);
+            eventosPro[toKey] = toList;
+            if (!list.length) delete eventosPro[fromKey];
+            eventos[fromKey] = (Array.isArray(eventosPro[fromKey]) && eventosPro[fromKey].length) || false;
+            eventos[toKey] = true;
+            await Promise.all([
+              guardarDatosUsuarioEnFirestore('eventosPro', eventosPro),
+              guardarDatosUsuarioEnFirestore('eventos', eventos)
+            ]);
+            renderDia();
+          }
+        }catch(err){ console.warn(err); }
+      });
+
+      grid.appendChild(slot);
+    }
+
+    // línea de ahora
+    if (isToday(d)){
+      const now = new Date();
+      const h = now.getHours(), m = now.getMinutes();
+      const rowIndex = 1 + 1 + h;
+      const nodeIndex = rowIndex*2 + 1;
+      const slot = grid.children[nodeIndex];
+      if (slot && slot.classList.contains('calpro-slot')){
+        const line = document.createElement('div'); line.className='calpro-now';
+        const dot = document.createElement('div'); dot.className='calpro-now-dot';
+        line.appendChild(dot);
+        line.style.top = ( (m/60)*44 )+'px';
+        slot.appendChild(line);
+      }
+    }
+  }
+
+  function toISODate(d){ return d.getFullYear()+'-'+fmt2(d.getMonth()+1)+'-'+fmt2(d.getDate()); }
+  function keyFromISO(iso){
+    const [Y,M,D] = iso.split('-').map(Number);
+    return (M-1)+'-'+D;
+  }
+  function isToday(d){ const n = new Date(); return n.getFullYear()===d.getFullYear() && n.getMonth()===d.getMonth() && n.getDate()===d.getDate(); }
+
+  // ===== Mejoras en vista mes: post-procesado después de construirMes =====
+  const construirMes_original = window.construirMes;
+  window.construirMes = function(mes){
+    construirMes_original.call(this, mes);
+    // Añade chips de eventosPro y doble clic para editor
+    const celdas = grid.querySelectorAll('.cal-dia[data-dia]');
+    celdas.forEach(cell=>{
+      const d = Number(cell.getAttribute('data-dia'));
+      const k = keyDay(mes, d);
+      const list = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
+      // resumen
+      const badgeOld = cell.querySelector('.cal-count');
+      if (badgeOld) badgeOld.remove();
+      if (list.length){
+        const badge = document.createElement('div');
+        badge.className = 'cal-count';
+        badge.textContent = '+'+(list.length);
+        cell.appendChild(badge);
+        cell.classList.add('cal-has-event');
+      }
+      // doble click para crear/editar
+      cell.addEventListener('dblclick', ()=>{
+        const dateISO = new Date(new Date().getFullYear(), mes, d);
+        abrirEditorEvento(toISODate(dateISO));
+      });
+    });
+    // actualizar info
+    info.textContent = 'Vista mes';
+  };
+
+  // ===== Notificaciones locales =====
+  let notifEnabled = false;
+  btnNotif?.addEventListener('click', async ()=>{
+    if (!('Notification' in window)){ alert('Tu navegador no soporta notificaciones.'); return; }
+    const perm = await Notification.requestPermission();
+    notifEnabled = (perm === 'granted');
+    if (notifEnabled) btnNotif.classList.add('active');
+  });
+
+  function checkUpcomingEvents(){
+    if (!notifEnabled || !('Notification' in window)) return;
+    const now = new Date();
+    const horizonMin = 10; // avisar eventos que comienzan en <=10 min
+    const firedKey = 'calpro_notifs_' + now.toISOString().slice(0,10);
+    const fired = JSON.parse(localStorage.getItem(firedKey) || '[]');
+
+    for (const k in eventosPro){
+      const [mStr,dStr] = k.split('-');
+      const dt = new Date(now.getFullYear(), Number(mStr), Number(dStr));
+      const iso = toISODate(dt);
+      const list = eventosPro[k] || [];
+      list.forEach(ev=>{
+        const [hIni,mIni] = (ev.inicio||'09:00').split(':').map(Number);
+        const evStart = new Date(iso + 'T' + fmt2(hIni)+':'+fmt2(mIni)+':00');
+        const diff = (evStart - now)/60000; // minutos
+        const id = iso+'|'+ev.titulo+'|'+ev.inicio;
+        if (diff >= 0 && diff <= horizonMin && !fired.includes(id)){
+          // lanzar notificación
+          try {
+            new Notification(ev.titulo || 'Evento', { body: ev.nota ? ev.nota : ('Empieza a las ' + ev.inicio) });
+          } catch(e){ /* some browsers require user gesture */ }
+          fired.push(id);
+        }
+      });
+    }
+    localStorage.setItem(firedKey, JSON.stringify(fired));
+  }
+  setInterval(checkUpcomingEvents, 60*1000);
+  // primera pasada unos segundos después
+  setTimeout(checkUpcomingEvents, 5000);
+
+  // ===== Exponer helpers para depurar
+  window.setCalProMode = setMode;
+  window.abrirEditorEvento = abrirEditorEvento;
+
+  // arranque: mantiene comportamiento original (mes)
+  updateToolbar();
+})();
+
+
+</script>
+
 <template id="tplEventEditor">
-  <div id="eventEditorBackdrop">
-    <div id="eventEditor" role="dialog" aria-modal="true" aria-labelledby="eeTitle">
+  <div id="eventEditorBackdrop" data-close>
+    <div id="eventEditor" role="dialog" aria-modal="true">
       <h3 id="eeTitle">Nuevo evento</h3>
       <div class="ee-row">
-        <label>Título<input id="eeTitulo" placeholder="Título del evento" /></label>
+        <label>Título<input id="eeTitulo" placeholder="Reunión, cita, etc."></label>
       </div>
       <div class="ee-row">
-        <label>Fecha<input id="eeFecha" type="date" /></label>
-        <label>Inicio<input id="eeInicio" type="time" value="09:00"/></label>
-        <label>Fin<input id="eeFin" type="time" value="10:00"/></label>
+        <label>Fecha<input id="eeFecha" type="date"></label>
+        <label>Inicio<input id="eeInicio" type="time" value="09:00"></label>
+        <label>Fin<input id="eeFin" type="time" value="10:00"></label>
       </div>
       <div class="ee-row">
-        <label>Notas<textarea id="eeNota" rows="4" placeholder="Notas..."></textarea></label>
+        <label>Nota<textarea id="eeNota" rows="4" placeholder="Detalles..."></textarea></label>
       </div>
       <div class="ee-actions">
-        <button class="ee-btn danger" id="eeEliminar" style="display:none">Eliminar</button>
+        <button class="ee-btn" id="eeEliminar" style="display:none">Eliminar</button>
         <div class="ee-actions-right">
-          <button class="ee-btn" data-close>Cancelar</button>
-          <button class="ee-btn primary" id="eeGuardar">Guardar</button>
+          <button class="ee-btn" data-close>Cancelar (Esc)</button>
+          <button class="ee-btn primary" id="eeGuardar">Guardar (Ctrl+Enter)</button>
         </div>
       </div>
     </div>
   </div>
 </template>
 
-<script>
-/* =====================================================================
-   UTILIDADES + ESTADO GLOBAL (respetando contratos con tu módulo Firebase)
-   ===================================================================== */
-const $ = (q, root=document) => root.querySelector(q);
-const $$ = (q, root=document) => Array.from(root.querySelectorAll(q));
+</body>
 
-const mesesN = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const diasCorto = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-const now = new Date();
-const ANYO = now.getFullYear();
+<!-- Botones de ejemplo para login/logout -->
+<div style="position:fixed;bottom:18px;right:18px;z-index:5000;display:flex;gap:10px;">
+  <button id="loginGoogle" style="padding:10px 18px;border-radius:10px;background:#fffbe7;color:#2d2d6e;font-weight:700;border:1.5px solid #f9a825;cursor:pointer;">Login con Google</button>
+  <button id="logout" style="padding:10px 18px;border-radius:10px;background:#f9a825;color:#fff;font-weight:700;border:none;cursor:pointer;">Logout</button>
+</div>
+<script type="module">
+  // Importar los módulos necesarios
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-// Exponer contenedor para funciones Firestore (será poblado por tu script de Firebase)
-window.firebaseFirestore = window.firebaseFirestore || { doc:null, getDoc:null, setDoc:null, updateDoc:null };
-
-// Estado sincronizado con tu módulo Firebase (NO tocar nombres)
-let notas = {};        // mapa "mes-dia" -> string
-let eventos = {};      // mapa legacy "mes-dia" -> true
-let eventosPro = {};   // mapa "mes-dia" -> [{id,titulo,inicio,fin,nota}]
-let stickers = {};     // mapa "mes-dia" -> true
-
-let db = null;                 // Firestore instance (la pone tu módulo)
-let currentUserData = null;    // {uid,...} (la pone tu módulo)
-
-// Mes/día visible
-let mesVisible = new Date().getMonth();
-let diaActivo = { mes: mesVisible, dia: new Date().getDate() };
-
-// =============================================================
-// Sincronizadores con window.user* (tu script los actualizará)
-// =============================================================
-Object.defineProperty(window, 'userNotes', { get(){return notas}, set(v){ notas=v||{}; actualizarCalendarioUI(); } });
-Object.defineProperty(window, 'userEvents', { get(){return eventos}, set(v){ eventos=v||{}; actualizarCalendarioUI(); } });
-Object.defineProperty(window, 'userEventsPro', { get(){return eventosPro}, set(v){ eventosPro=v||{}; actualizarCalendarioUI(); } });
-Object.defineProperty(window, 'userStickers', { get(){return stickers}, set(v){ stickers=v||{}; actualizarCalendarioUI(); } });
-
-// API pública para que tu módulo Firebase pueda actualizar refs
-window.actualizarCalendarioUI = function(){
-  db = window.db;
-  currentUserData = window.currentUserData;
-  construirSegunModo();
-  actualizarSidePanel();
-};
-
-function keyDay(mes, dia){ return mes + '-' + dia; }
-function uid(){ return Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4); }
-
-async function guardarDatosUsuarioEnFirestore(campo, valor){
-  if (!window.firebaseFirestore || !window.firebaseFirestore.setDoc || !window.db || !window.currentUserData?.uid){
-    // Aún no hay sesión o Firestore listo: no rompas la UI
-    console.warn('Firestore no disponible aún; difiriendo guardado de', campo);
-    return;
-  }
-  const { doc, setDoc } = window.firebaseFirestore;
-  const userDocRef = doc(window.db, 'users', window.currentUserData.uid);
-  try{
-    await setDoc(userDocRef, { [campo]: valor }, { merge: true });
-  }catch(err){ console.error('Error guardando', campo, err); }
-}
-
-// =====================================================================
-// Portada + Índice
-// =====================================================================
-const agenda = $('#agenda');
-const tapa = $('#tapa');
-const bandaAno = $('#bandaAno');
-const mesPortada = $('#mesPortada');
-const diaPortada = $('#diaPortada');
-
-bandaAno.textContent = ANYO;
-mesPortada.textContent = mesesN[now.getMonth()];
-diaPortada.textContent = now.getDate();
-
-function updateHoraActual(){
-  const el = $('#horaActual'); if(!el) return;
-  const opts = { hour:'2-digit', minute:'2-digit', second:'2-digit' };
-  const hora = new Date().toLocaleTimeString(undefined, opts);
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  el.textContent = `${hora} (${tz})`;
-}
-updateHoraActual(); setInterval(updateHoraActual, 1000);
-
-tapa.addEventListener('click', toggleAgenda);
-tapa.addEventListener('keydown', e=>{ if(['Enter',' '].includes(e.key)){ e.preventDefault(); toggleAgenda(); } });
-$('#btnVolverPortada').addEventListener('click', ()=> agenda.classList.remove('abierta'));
-
-function toggleAgenda(){
-  const abierta = agenda.classList.toggle('abierta');
-  tapa.setAttribute('aria-pressed', abierta ? 'true' : 'false');
-}
-
-(function initIndice(){
-  const mesActual = now.getMonth();
-  $$('#tablaMeses td[data-mes]').forEach(td=>{
-    if (+td.dataset.mes === mesActual) td.classList.add('mes-actual');
-    td.addEventListener('click', ()=> abrirCalendario(+td.dataset.mes));
-  });
-  $('#btnAbrirCalendarioActual').addEventListener('click', ()=> abrirCalendario(mesActual));
-})();
-
-// =====================================================================
-// Calendario Overlay + Vistas
-// =====================================================================
-const overlay = $('#overlayCal');
-const overlayBg = $('#overlayBg');
-const calTitulo = $('#calTitulo');
-const grid = $('#calGrid');
-const btnPrevMes = $('#btnMesAnterior');
-const btnNextMes = $('#btnMesSiguiente');
-const btnVolverIndice = $('#btnVolverIndice');
-const btnHoy = $('#btnHoy');
-const btnLimpiarMes = $('#btnLimpiarMes');
-
-// Side panel
-const sideTitulo = $('#sideTitulo');
-const notaTextarea = $('#notaDia');
-const btnGuardarNota = $('#btnGuardarNota');
-const btnBorrarNota = $('#btnBorrarNota');
-const btnToggleEvento = $('#btnToggleEvento');
-const btnToggleSticker = $('#btnToggleSticker');
-
-function abrirCalendario(mes){
-  mesVisible = mes;
-  overlay.classList.add('visible');
-  overlay.setAttribute('aria-hidden','false');
-  setMode('mes');
-  setTimeout(()=>{
-    const hoy = (mes === now.getMonth()) ? now.getDate() : 1;
-    const c = grid.querySelector(`[data-dia="${hoy}"]`);
-    if (c) seleccionarDia(mes, hoy, c);
-  },0);
-}
-
-function cerrarCalendario(){
-  overlay.classList.remove('visible');
-  overlay.setAttribute('aria-hidden','true');
-}
-$('#btnVolverIndice').addEventListener('click', cerrarCalendario);
-document.addEventListener('keydown', e=>{ if(overlay.classList.contains('visible') && e.key==='Escape') cerrarCalendario(); });
-btnHoy.addEventListener('click', ()=> abrirCalendario(now.getMonth()));
-btnLimpiarMes.addEventListener('click', limpiarMesConfirm);
-btnPrevMes.addEventListener('click', ()=> navegarMes(-1));
-btnNextMes.addEventListener('click', ()=> navegarMes(+1));
-function navegarMes(delta){ mesVisible = (mesVisible + delta + 12) % 12; setMode('mes'); }
-
-function aplicarTemaMes(m){
-  const temas = {
-    0:'linear-gradient(135deg, #dff7ff 0%, #b7eaff 100%)',
-    1:'linear-gradient(135deg, #e8f7ff 0%, #c9e8ff 100%)',
-    2:'linear-gradient(135deg, #fff1c1 0%, #ffd280 100%)',
-    3:'linear-gradient(135deg, #f5e5ff 0%, #cfe3ff 100%)',
-    4:'linear-gradient(135deg, #fff8d6 0%, #ffd95a 100%)',
-    5:'linear-gradient(135deg, #ffe082 0%, #ffd54f 100%)',
-    6:'linear-gradient(135deg, #ffe082 0%, #ffb300 100%)',
-    7:'linear-gradient(135deg, #ffd54f 0%, #ffb300 100%)',
-    8:'linear-gradient(135deg, #c9f1ff 0%, #e7fbff 100%)',
-    9:'linear-gradient(135deg, #ffe0b2 0%, #ffb74d 100%)',
-    10:'linear-gradient(135deg, #ffe082 0%, #fbc02d 100%)',
-    11:'linear-gradient(135deg, #e0f7fa 0%, #b2e0f7 100%)',
+  // Tu configuración (copiada de Firebase Console)
+  const firebaseConfig = {
+    apiKey: "AIzaSyDT76OdtQM6UUPj4k6gv7O9Ow7BwH6dEWM",
+    authDomain: "calendario-ea7e0.firebaseapp.com",
+    projectId: "calendario-ea7e0",
+    storageBucket: "calendario-ea7e0.firebasestorage.app",
+    messagingSenderId: "1032562955831",
+    appId: "1:1032562955831:web:050e5438ac017c28f251b2",
+    measurementId: "G-L00QYFD1MJ"
   };
-  overlayBg.style.background = temas[m] || temas[0];
-}
 
-// =====================================================================
-// Vista MES
-// =====================================================================
-function construirMes(mes){
-  aplicarTemaMes(mes);
-  const anyo = ANYO;
-  const primerDia = new Date(anyo, mes, 1).getDay();
-  const diasEnMes = new Date(anyo, mes+1, 0).getDate();
-  calTitulo.textContent = `${mesesN[mes].toUpperCase()} ${anyo}`;
+  // Inicializar Firebase
 
-  grid.classList.remove('calpro-week','calpro-day');
-  grid.innerHTML = '';
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  window.db = getFirestore(app);
 
-  // Cabeceras
-  diasCorto.forEach(d=>{
-    const h = document.createElement('div');
-    h.className = 'cal-dia-header'; h.textContent = d; grid.appendChild(h);
+
+  // 🔹 Login con Google (solo una vez, abajo se usa el mismo provider y auth)
+  const provider = new GoogleAuthProvider();
+
+  // 🔹 Ejemplo: Logout
+  document.getElementById("logout").addEventListener("click", async () => {
+    await signOut(auth);
+    console.log("Sesión cerrada");
   });
-  // Vacíos previos
-  for(let i=0;i<primerDia;i++){ const v = document.createElement('div'); v.setAttribute('aria-hidden','true'); grid.appendChild(v); }
 
-  // Días
-  for(let d=1; d<=diasEnMes; d++){
-    const cell = document.createElement('div');
-    cell.className = 'cal-dia';
-    cell.dataset.dia = d;
-    cell.setAttribute('role','gridcell');
-    cell.setAttribute('tabindex','0');
-    if (mes === now.getMonth() && d === now.getDate()) cell.classList.add('cal-dia-hoy');
+  // 🔹 Ejemplo: Guardar un evento en Firestore
+  // 🔹 Vigilante de autenticación: onAuthStateChanged
+  // Login modal button
+  const modalLoginBtn = document.getElementById("modalLoginGoogle");
+  // Soporte de UI: alternar entre LOGIN y REGISTRO sin romper IDs existentes
+  const toRegister = document.getElementById("toRegister");
+  const toLogin = document.getElementById("toLogin");
+  const switchToRegister = document.getElementById("switchToRegister");
+  const switchToLogin = document.getElementById("switchToLogin");
+  const authTitle = document.getElementById("authTitle");
+  const registerForm = document.getElementById("registerForm");
+  const registerEmail = document.getElementById("registerEmail");
+  const registerPassword = document.getElementById("registerPassword");
+  const registerPassword2 = document.getElementById("registerPassword2");
+  const registerBtn = document.getElementById("registerBtn");
 
-    const num = document.createElement('div');
-    num.className = 'cal-dia-num'; num.textContent = d;
-    cell.appendChild(num);
+  function showLoginForm(){
+    if (manualLoginForm) manualLoginForm.style.display = "flex";
+    if (registerForm) registerForm.style.display = "none";
+    if (switchToRegister) switchToRegister.style.display = "";
+    if (switchToLogin) switchToLogin.style.display = "none";
+    if (authTitle) authTitle.textContent = "Iniciar sesión";
+    if (loginError) loginError.textContent = "";
+  }
+  function showRegisterForm(){
+    if (manualLoginForm) manualLoginForm.style.display = "none";
+    if (registerForm) registerForm.style.display = "flex";
+    if (switchToRegister) switchToRegister.style.display = "none";
+    if (switchToLogin) switchToLogin.style.display = "";
+    if (authTitle) authTitle.textContent = "Crear cuenta";
+    if (loginError) loginError.textContent = "";
+  }
+  if (toRegister) toRegister.addEventListener("click", (e)=>{ e.preventDefault(); showRegisterForm(); });
+  if (toLogin) toLogin.addEventListener("click", (e)=>{ e.preventDefault(); showLoginForm(); });
 
-    // Lista de eventos del día (+n)
-    const k = keyDay(mes,d);
-    const list = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
-    if(list.length){
-      const cont = document.createElement('div');
-      cont.className = 'month-list';
-      const max = 2; // mostrar hasta 2, resto en +n para no romper layout
-      list.slice(0,max).forEach(e=>{
-        const it = document.createElement('div');
-        it.className='month-event';
-        it.textContent = `${e.inicio || '—'} ${e.titulo || 'Evento'}`;
-        cont.appendChild(it);
-      });
-      if(list.length>max){
-        const more = document.createElement('button');
-        more.className='month-more'; more.textContent = `+${list.length-max}`;
-        more.addEventListener('click', ev=>{ ev.stopPropagation(); setMode('dia', new Date(ANYO, mes, d)); });
-        cell.appendChild(more);
+  // Registro con email/contraseña (sin romper el flujo de onAuthStateChanged)
+  if (registerForm) {
+    registerForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      loginError.textContent = "";
+      if (!registerEmail.value || !registerPassword.value || !registerPassword2.value) return;
+      if (registerPassword.value !== registerPassword2.value) {
+        loginError.textContent = "Las contraseñas no coinciden.";
+        return;
       }
-      cell.appendChild(cont);
-    }else if(eventos[k]){
-      // legacy marker
-      const cont = document.createElement('div');
-      cont.className = 'month-list';
-      const it = document.createElement('div'); it.className='month-event'; it.textContent='Evento';
-      cont.appendChild(it);
-      cell.appendChild(cont);
+      try {
+        registerBtn.disabled = true;
+        const cred = await createUserWithEmailAndPassword(auth, registerEmail.value, registerPassword.value);
+        // Crear documento base en Firestore para el usuario recién creado (idempotente con merge)
+        const userDocRef = doc(db, "users", cred.user.uid);
+        await setDoc(userDocRef, { notas: {}, eventos: {}, stickers: {} }, { merge: true });
+        // El onAuthStateChanged se encargará de cerrar el modal y cargar la app
+      } catch (err) {
+        console.error("Error en registro:", err);
+        loginError.textContent = err?.message || "Error al crear la cuenta";
+      } finally {
+        registerBtn.disabled = false;
+      }
+    });
+  }
+
+  const manualLoginForm = document.getElementById("manualLoginForm");
+  const manualLoginBtn = document.getElementById("manualLoginBtn");
+  const loginEmail = document.getElementById("loginEmail");
+  const loginPassword = document.getElementById("loginPassword");
+  const loginError = document.getElementById("loginError");
+  const loginModal = document.getElementById("loginModal");
+  const mainApp = document.getElementById("mainApp");
+  // ✨ EXPORTA LAS FUNCIONES DE FIRESTORE AL OBJETO WINDOW ✨
+  // para que el script principal pueda usarlas en `guardarDatosUsuarioEnFirestore`
+  window.firebaseFirestore.doc = doc;
+  window.firebaseFirestore.getDoc = getDoc;
+  window.firebaseFirestore.setDoc = setDoc;
+  window.firebaseFirestore.updateDoc = updateDoc;
+
+
+  if (modalLoginBtn) {
+    modalLoginBtn.addEventListener("click", async () => {
+      try {
+        modalLoginBtn.disabled = true;
+        await signInWithPopup(auth, provider);
+      } catch (err) {
+        console.error("Error en login modal:", err);
+        if (loginError) loginError.textContent = err.message || "Error en login con Google";
+      } finally {
+        modalLoginBtn.disabled = false;
+      }
+    });
+  }
+
+  // Login manual con email y contraseña
+  if (manualLoginForm) {
+    manualLoginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!loginEmail.value || !loginPassword.value) return;
+      manualLoginBtn.disabled = true;
+      loginError.textContent = '';
+      try {
+        await signInWithEmailAndPassword(auth, loginEmail.value, loginPassword.value);
+      } catch (err) {
+        console.error("Error en login manual:", err);
+        loginError.textContent = err.message || "Error en login";
+      } finally {
+        manualLoginBtn.disabled = false;
+      }
+    });
+  }
+  const loginButton = document.getElementById("loginGoogle");
+  const logoutButton = document.getElementById("logout");
+  // Crear un span para mostrar el email del usuario
+
+  // Crear contenedor para mostrar email y foto
+  const userDisplay = document.createElement('span');
+  userDisplay.style.display = 'flex';
+  userDisplay.style.alignItems = 'center';
+  userDisplay.style.marginLeft = '10px';
+  userDisplay.style.color = '#fff';
+  userDisplay.style.fontWeight = 'bold';
+  userDisplay.style.gap = '8px';
+  loginButton.parentNode.appendChild(userDisplay);
+
+  // Estado inicial: ocultar logout y userDisplay
+  logoutButton.style.display = 'none';
+  userDisplay.style.display = 'none';
+
+  // Refuerzo: asegurar que el evento click de Google Login SIEMPRE esté conectado
+  loginButton.onclick = null;
+  loginButton.addEventListener('click', async () => {
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (err) {
+      console.error("Error en login con Google:", err);
     }
-
-    cell.addEventListener('click', ()=> seleccionarDia(mes, d, cell));
-    cell.addEventListener('keydown', (e)=>{
-      if (['Enter',' '].includes(e.key)){ e.preventDefault(); seleccionarDia(mes,d,cell); }
-      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){ e.preventDefault(); moverFocoMes(cell, e.key); }
-    });
-
-    grid.appendChild(cell);
-  }
-}
-
-function moverFocoMes(cell, key){
-  const cells = $$('#calGrid .cal-dia');
-  const idx = cells.indexOf(cell);
-  const cols = 7;
-  let next = idx;
-  if (key==='ArrowRight') next = idx+1;
-  if (key==='ArrowLeft')  next = idx-1;
-  if (key==='ArrowDown')  next = idx+cols;
-  if (key==='ArrowUp')    next = idx-cols;
-  next = Math.max(0, Math.min(cells.length-1, next));
-  cells[next]?.focus();
-}
-
-// =====================================================================
-// Vista SEMANA / DÍA
-// =====================================================================
-let proMode = 'mes';
-let fechaFocal = new Date();
-
-const btnModeMes = $('#btnModeMes');
-const btnModeSemana = $('#btnModeSemana');
-const btnModeDia = $('#btnModeDia');
-const btnPrev = $('#btnPrev');
-const btnNext = $('#btnNext');
-const btnNotif = $('#btnNotif');
-const info = $('#calProInfo');
-
-function setMode(mode, date=null){
-  proMode = mode;
-  if (date) fechaFocal = new Date(date);
-  btnModeMes.classList.toggle('active', mode==='mes');
-  btnModeSemana.classList.toggle('active', mode==='semana');
-  btnModeDia.classList.toggle('active', mode==='dia');
-  construirSegunModo();
-}
-
-function construirSegunModo(){
-  if (proMode==='mes'){ construirMes(mesVisible); }
-  else if (proMode==='semana'){ renderSemana(); }
-  else { renderDia(); }
-}
-
-btnModeMes.addEventListener('click', ()=> setMode('mes'));
-btnModeSemana.addEventListener('click', ()=> setMode('semana'));
-btnModeDia.addEventListener('click', ()=> setMode('dia'));
-btnPrev.addEventListener('click', ()=>{
-  if (proMode==='mes'){ mesVisible=(mesVisible+11)%12; construirMes(mesVisible); }
-  else if (proMode==='semana'){ fechaFocal.setDate(fechaFocal.getDate()-7); renderSemana(); }
-  else { fechaFocal.setDate(fechaFocal.getDate()-1); renderDia(); }
-});
-btnNext.addEventListener('click', ()=>{
-  if (proMode==='mes'){ mesVisible=(mesVisible+1)%12; construirMes(mesVisible); }
-  else if (proMode==='semana'){ fechaFocal.setDate(fechaFocal.getDate()+7); renderSemana(); }
-  else { fechaFocal.setDate(fechaFocal.getDate()+1); renderDia(); }
-});
-
-function mondayOf(d){
-  const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const day = dt.getDay(); // 0 dom .. 6 sab
-  const diff = (day === 0 ? -6 : 1 - day);
-  dt.setDate(dt.getDate() + diff);
-  return dt;
-}
-function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
-function fmt2(n){ return String(n).padStart(2,'0'); }
-function toMinutes(hhmm){ const [h,m]= (hhmm||'00:00').split(':').map(Number); return h*60+m; }
-function fromMinutes(min){ const h=Math.floor(min/60); const m=min%60; return `${fmt2(h)}:${fmt2(m)}`; }
-
-function renderSemana(){
-  grid.className='cal-grid calpro-week';
-  grid.innerHTML='';
-
-  const start = mondayOf(fechaFocal);
-  const days = Array.from({length:7}, (_,i)=> addDays(start,i));
-  const label = `${days[0].getDate()} ${mesesN[days[0].getMonth()].slice(0,3)} – ${days[6].getDate()} ${mesesN[days[6].getMonth()].slice(0,3)} ${days[6].getFullYear()}`;
-  calTitulo.textContent = `SEMANA · ${label}`;
-
-  // Columna horas
-  const colHoursHead = document.createElement('div');
-  colHoursHead.className='calpro-colhead'; colHoursHead.textContent='';
-  grid.appendChild(colHoursHead);
-
-  days.forEach(d=>{
-    const head = document.createElement('div');
-    head.className='calpro-colhead';
-    head.textContent = `${diasCorto[d.getDay()]} ${d.getDate()} ${mesesN[d.getMonth()].slice(0,3)}`;
-    if (isToday(d)) head.classList.add('calpro-today');
-    grid.appendChild(head);
   });
 
-  // Horas 0..23
-  for(let h=0; h<24; h++){
-    const hourLbl = document.createElement('div');
-    hourLbl.className='calpro-hour calpro-hour-label';
-    hourLbl.textContent = `${fmt2(h)}:00`;
-    grid.appendChild(hourLbl);
+  // Eliminada importación duplicada de onAuthStateChanged
+  onAuthStateChanged(auth, async (user) => { // ¡Ahora la función es correctamente asíncrona!
+    window.currentUserData = user; // Guarda el usuario globalmente
 
-    days.forEach(d=>{
-      const slot = document.createElement('div');
-      slot.className = 'calpro-slot calpro-hour';
-      slot.dataset.date = toISO(d);
-      slot.dataset.hour = h;
-      slot.addEventListener('dblclick', ()=> abrirEditorEvento(slot.dataset.date));
-      grid.appendChild(slot);
-      renderEventsInSlot(slot, d, h);
-    });
-  }
-  paintNowLine();
-}
+    if (user) {
+      // Usuario logeado
+      if (loginModal) loginModal.style.display = 'none';
+      if (mainApp) mainApp.style.display = '';
 
-function renderDia(){
-  grid.className='cal-grid calpro-day';
-  grid.innerHTML='';
+      userDisplay.innerHTML = '';
+      if (user.photoURL) {
+        const img = document.createElement('img');
+        img.src = user.photoURL;
+        img.alt = 'Avatar';
+        img.style.width = '32px';
+        img.style.height = '32px';
+        img.style.borderRadius = '50%';
+        img.style.objectFit = 'cover';
+        userDisplay.appendChild(img);
+      }
+      const emailSpan = document.createElement('span');
+      emailSpan.textContent = user.email;
+      userDisplay.appendChild(emailSpan);
 
-  const d = new Date(fechaFocal);
-  calTitulo.textContent = `DÍA · ${diasCorto[d.getDay()]} ${d.getDate()} ${mesesN[d.getMonth()].toUpperCase()} ${d.getFullYear()}`;
+      loginButton.style.display = 'none';
+      logoutButton.style.display = 'block';
+      userDisplay.style.display = 'flex';
 
-  const headHours = document.createElement('div'); headHours.className='calpro-colhead'; grid.appendChild(headHours);
-  const headDay = document.createElement('div'); headDay.className='calpro-colhead'; headDay.textContent='Horario'; if (isToday(d)) headDay.classList.add('calpro-today'); grid.appendChild(headDay);
+      // ✨ NUEVA LÓGICA PARA CARGAR DATOS DE FIRESTORE O MIGRAR DESDE LOCALSTORAGE ✨
+      const userDocRef = doc(db, "users", user.uid); // Referencia al documento del usuario
+      const userDocSnap = await getDoc(userDocRef); // Intenta obtener el documento
 
-  for(let h=0; h<24; h++){
-    const hourLbl = document.createElement('div'); hourLbl.className='calpro-hour calpro-hour-label'; hourLbl.textContent = `${fmt2(h)}:00`; grid.appendChild(hourLbl);
-    const slot = document.createElement('div'); slot.className='calpro-slot calpro-hour'; slot.dataset.date = toISO(d); slot.dataset.hour = h;
-    slot.addEventListener('dblclick', ()=> abrirEditorEvento(slot.dataset.date));
-    grid.appendChild(slot);
-    renderEventsInSlot(slot, d, h);
-  }
-  paintNowLine();
-}
+      if (userDocSnap.exists()) {
+        // Los datos del usuario ya están en Firestore, los cargamos en las variables globales
+        const data = userDocSnap.data();
+        window.userNotes = data.notas || {};
+        window.userEvents = data.eventos || {};
+        window.userStickers = data.stickers || {};
+        window.userEventsPro = data.eventosPro || {};
+        console.log("Datos del usuario cargados desde Firestore.");
+      } else {
+        // Es la primera vez que el usuario inicia sesión o no tiene datos en Firestore.
+        // Verificamos localStorage para una posible migración.
+        console.log("No hay datos de usuario en Firestore. Verificando localStorage para posible migración.");
 
-function toISO(d){ return `${d.getFullYear()}-${fmt2(d.getMonth()+1)}-${fmt2(d.getDate())}`; }
-function isToday(d){ const x=new Date(); return x.getFullYear()===d.getFullYear() && x.getMonth()===d.getMonth() && x.getDate()===d.getDate(); }
+        const currentYear = new Date().getFullYear();
+        const localNotas = JSON.parse(localStorage.getItem('agenda_notas_' + currentYear) || '{}');
+        const localEventos = JSON.parse(localStorage.getItem('agenda_eventos_' + currentYear) || '{}');
+        const localStickers = JSON.parse(localStorage.getItem('agenda_stickers_' + currentYear) || '{}');
 
-function renderEventsInSlot(slot, dateObj, hour){
-  const k = keyDay(dateObj.getMonth(), dateObj.getDate());
-  const list = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
-  const within = list.filter(e=> Math.floor(toMinutes(e.inicio||'00:00')/60) === hour);
-  within.forEach((e, idx)=>{
-    const el = document.createElement('div');
-    el.className = 'calpro-event';
-    el.draggable = true;
-    el.textContent = `${e.inicio} ${e.titulo}`;
-    const topMin = toMinutes(e.inicio) - hour*60;
-    const dur = Math.max(15, toMinutes(e.fin||e.inicio) - toMinutes(e.inicio));
-    el.style.top = `${(topMin/60)*44}px`;
-    el.style.height = `${(dur/60)*44 - 4}px`;
-
-    // Drag
-    el.addEventListener('dragstart', dragStart(e, k, idx));
-    el.addEventListener('dragend', dragEnd);
-    slot.appendChild(el);
-  });
-
-  // Allow drop to set new hour
-  slot.addEventListener('dragover', e=>{ e.preventDefault(); });
-  slot.addEventListener('drop', e=>{
-    e.preventDefault();
-    const payload = dragPayload;
-    if (!payload) return;
-    const tgtDate = new Date(slot.dataset.date+'T00:00');
-    const kNew = keyDay(tgtDate.getMonth(), tgtDate.getDate());
-    const y = e.offsetY; // 0..44
-    const minutesIntoHour = Math.round((y/44)*60/15)*15; // redondeo 15'
-    const newStartMin = hour*60 + minutesIntoHour;
-    const dur = payload.durMin;
-    const newEndMin = Math.max(newStartMin+15, newStartMin + dur);
-
-    // mover evento
-    const arrOld = Array.isArray(eventosPro[payload.k]) ? eventosPro[payload.k] : [];
-    const evt = arrOld.splice(payload.idx,1)[0];
-    if (!evt) return;
-
-    const arrNew = Array.isArray(eventosPro[kNew]) ? eventosPro[kNew] : [];
-    evt.inicio = fromMinutes(newStartMin);
-    evt.fin = fromMinutes(newEndMin);
-    arrNew.push(evt);
-    eventosPro[payload.k] = arrOld;
-    eventosPro[kNew] = arrNew;
-    // legacy marker
-    if (!arrOld.length) delete eventos[payload.k]; else eventos[payload.k] = true;
-    eventos[kNew] = true;
-
-    Promise.all([
-      guardarDatosUsuarioEnFirestore('eventosPro', eventosPro),
-      guardarDatosUsuarioEnFirestore('eventos', eventos)
-    ]).then(()=> construirSegunModo());
-  });
-}
-
-let dragPayload = null;
-function dragStart(evtData, k, idx){
-  return (ev)=>{
-    ev.dataTransfer.effectAllowed = 'move';
-    ev.currentTarget.classList.add('dragging');
-    const dur = Math.max(15, toMinutes(evtData.fin||evtData.inicio) - toMinutes(evtData.inicio));
-    dragPayload = { k, idx, durMin: dur };
-  }
-}
-function dragEnd(ev){
-  ev.currentTarget.classList.remove('dragging');
-  dragPayload = null;
-}
-
-function paintNowLine(){
-  // Dibujar línea roja actual en vista semana/día
-  const cols = $$('.calpro-slot');
-  if (!cols.length) return;
-  const firstCol = cols[0].parentElement; // grid
-  // Eliminar previas
-  $$('.calpro-now').forEach(n=>n.remove());
-  const d = new Date();
-  const min = d.getHours()*60 + d.getMinutes();
-  const y = (min/60)*44; // px
-
-  // Para semana: una línea por cada día "hoy"
-  if (proMode==='semana'){
-    const start = mondayOf(fechaFocal);
-    for(let i=0;i<7;i++){
-      const day = addDays(start,i);
-      if (isToday(day)){
-        // Encontrar slots de este día
-        const daySlots = $$('.calpro-slot').filter(s=> s.dataset.date === toISO(day));
-        if (daySlots.length){
-          const container = daySlots[0].parentElement; // grid
-          const line = document.createElement('div'); line.className='calpro-now'; line.style.top = `${y}px`;
-          const dot = document.createElement('div'); dot.className='calpro-now-dot';
-          line.appendChild(dot);
-          container.appendChild(line);
+        if (Object.keys(localNotas).length > 0 || Object.keys(localEventos).length > 0 || Object.keys(localStickers).length > 0) {
+          console.log("¡Migrando datos de localStorage a Firestore!");
+          window.userNotes = localNotas;
+          window.userEvents = localEventos;
+          window.userStickers = localStickers;
+          await setDoc(userDocRef, { // Crea el documento del usuario en Firestore con los datos migrados
+            notas: window.userNotes,
+            eventos: window.userEvents,
+            stickers: window.userStickers
+          });
+          console.log("Migración completada. Limpiando localStorage.");
+          localStorage.removeItem('agenda_notas_' + currentYear);
+          localStorage.removeItem('agenda_eventos_' + currentYear);
+          localStorage.removeItem('agenda_stickers_' + currentYear);
+        } else {
+          // Si no hay datos en localStorage, inicializa las variables globales como vacías
+          window.userNotes = {};
+          window.userEvents = {};
+          window.userStickers = {};
+          console.log("No hay datos en localStorage para migrar.");
         }
       }
-    }
-  } else if (proMode==='dia'){
-    const all = $$('.calpro-slot');
-    if (all.length){
-      const container = all[0].parentElement;
-      const line = document.createElement('div'); line.className='calpro-now'; line.style.top = `${y}px`;
-      const dot = document.createElement('div'); dot.className='calpro-now-dot';
-      line.appendChild(dot);
-      container.appendChild(line);
-    }
-  }
 
-  // Actualizar cada minuto
-  clearTimeout(paintNowLine._t);
-  paintNowLine._t = setTimeout(paintNowLine, 60*1000);
-}
+      // Después de cargar o migrar, fuerza la actualización de la UI del calendario.
+      if (window.actualizarCalendarioUI) {
+          window.actualizarCalendarioUI();
+      } else {
+          console.warn("actualizarCalendarioUI no está definida globalmente. La interfaz del calendario podría no actualizarse.");
+      }
 
-// =====================================================================
-// Selección y notas del panel lateral
-// =====================================================================
-function seleccionarDia(mes, dia, cell){
-  $$('#calGrid .cal-dia').forEach(c=>c.classList.remove('selected'));
-  if (cell) cell.classList.add('selected');
-  diaActivo = { mes, dia };
-  actualizarSidePanel();
-}
-function actualizarSidePanel(){
-  if (!diaActivo) return;
-  const { mes, dia } = diaActivo;
-  sideTitulo.textContent = `${dia} de ${mesesN[mes]}`;
-  const k = keyDay(mes, dia);
-  notaTextarea.value = (notas[k] || '');
-}
-btnGuardarNota.addEventListener('click', async ()=>{
-  if (!diaActivo) return;
-  const {mes, dia} = diaActivo; const k = keyDay(mes, dia);
-  const val = notaTextarea.value.trim();
-  if (val) notas[k]=val; else delete notas[k];
-  await guardarDatosUsuarioEnFirestore('notas', notas);
-  btnGuardarNota.textContent='Guardado ✓'; setTimeout(()=> btnGuardarNota.textContent='Guardar',900);
-});
-btnBorrarNota.addEventListener('click', async ()=>{
-  if (!diaActivo) return;
-  const {mes, dia} = diaActivo; const k = keyDay(mes, dia);
-  delete notas[k];
-  await guardarDatosUsuarioEnFirestore('notas', notas);
-  notaTextarea.value='';
-});
-btnToggleEvento.addEventListener('click', async ()=>{
-  if (!diaActivo) return;
-  const {mes, dia} = diaActivo; const k = keyDay(mes, dia);
-  if (eventos[k]) delete eventos[k]; else eventos[k] = true;
-  await guardarDatosUsuarioEnFirestore('eventos', eventos);
-  construirSegunModo();
-});
-btnToggleSticker.addEventListener('click', async ()=>{
-  if (!diaActivo) return;
-  const {mes, dia} = diaActivo; const k = keyDay(mes, dia);
-  if (stickers[k]) delete stickers[k]; else stickers[k] = true;
-  await guardarDatosUsuarioEnFirestore('stickers', stickers);
-});
 
-async function limpiarMesConfirm(){
-  if (mesVisible==null) return;
-  if (!confirm('¿Seguro que quieres limpiar notas, eventos y stickers de este mes?')) return;
-  const prefix = mesVisible + '-';
-  const f = (map)=>{
-    const n={}; for(const k in map){ if(!k.startsWith(prefix)) n[k]=map[k]; } return n;
-  };
-  notas = f(notas); eventos = f(eventos); stickers = f(stickers);
-  await Promise.all([
-    guardarDatosUsuarioEnFirestore('notas', notas),
-    guardarDatosUsuarioEnFirestore('eventos', eventos),
-    guardarDatosUsuarioEnFirestore('stickers', stickers)
-  ]);
-  construirSegunModo(); actualizarSidePanel();
-}
+    } else {
+      // No logeado
+      if (loginModal) loginModal.style.display = 'flex';
+      if (mainApp) mainApp.style.display = 'none';
 
-// =====================================================================
-// Editor de eventos + CRUD
-// =====================================================================
-function abrirEditorEvento(fechaISO, evtIndex){
-  const tpl = $('#tplEventEditor'); if (!tpl) return;
-  const node = tpl.content.firstElementChild.cloneNode(true);
-  const inputTitulo = node.querySelector('#eeTitulo');
-  const inputFecha = node.querySelector('#eeFecha');
-  const inputIni = node.querySelector('#eeInicio');
-  const inputFin = node.querySelector('#eeFin');
-  const inputNota = node.querySelector('#eeNota');
-  const btnEliminar = node.querySelector('#eeEliminar');
-  const btnGuardar = node.querySelector('#eeGuardar');
+      userDisplay.innerHTML = '';
+      loginButton.style.display = 'block';
+      logoutButton.style.display = 'none';
+      userDisplay.style.display = 'none';
 
-  inputFecha.value = fechaISO || toISO(new Date());
-  const dt = new Date((inputFecha.value || toISO(new Date())) + 'T00:00');
-  const k = keyDay(dt.getMonth(), dt.getDate());
-  const arr = Array.isArray(eventosPro[k]) ? [...eventosPro[k]] : [];
+      // Limpiamos los datos del calendario cuando el usuario cierra sesión
+      window.currentUserData = null;
+      window.userNotes = {};
+      window.userEvents = {};
+      window.userStickers = {};
 
-  let modo='nuevo';
-  if (typeof evtIndex==='number' && arr[evtIndex]){
-    modo='editar';
-    const e = arr[evtIndex];
-    inputTitulo.value = e.titulo || '';
-    inputIni.value = e.inicio || '09:00';
-    inputFin.value = e.fin || '10:00';
-    inputNota.value = e.nota || '';
-    btnEliminar.style.display='';
-    node.querySelector('#eeTitle').textContent='Editar evento';
-  }
-
-  function cerrar(){ node.remove(); document.removeEventListener('keydown', onKey); }
-  node.addEventListener('click', (e)=>{ if (e.target && e.target.hasAttribute('data-close')) cerrar(); });
-  function onKey(e){ if(e.key==='Escape') cerrar(); }
-  document.addEventListener('keydown', onKey);
-
-  btnEliminar.addEventListener('click', async ()=>{
-    const list = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
-    if (typeof evtIndex==='number' && list[evtIndex]){
-      list.splice(evtIndex,1); eventosPro[k]=list;
-      if (!list.length) delete eventos[k]; else eventos[k]=true;
-      await Promise.all([
-        guardarDatosUsuarioEnFirestore('eventosPro', eventosPro),
-        guardarDatosUsuarioEnFirestore('eventos', eventos)
-      ]);
-      construirSegunModo(); cerrar();
+      if (window.actualizarCalendarioUI) {
+          window.actualizarCalendarioUI(); // Actualiza la UI para mostrar un calendario vacío/no logeado
+      }
     }
   });
-
-  btnGuardar.addEventListener('click', async ()=>{
-    const titulo = inputTitulo.value.trim() || 'Evento';
-    const inicio = inputIni.value || '09:00';
-    const fin = (inputFin.value && toMinutes(inputFin.value)>toMinutes(inicio)) ? inputFin.value : fromMinutes(toMinutes(inicio)+60);
-    const nota = inputNota.value.trim();
-    const e = { id: uid(), titulo, inicio, fin, nota };
-
-    const list = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
-    if (modo==='editar' && typeof evtIndex==='number' && list[evtIndex]) list[evtIndex]=e; else list.push(e);
-    eventosPro[k]=list; eventos[k]=true;
-    await Promise.all([
-      guardarDatosUsuarioEnFirestore('eventosPro', eventosPro),
-      guardarDatosUsuarioEnFirestore('eventos', eventos)
-    ]);
-    construirSegunModo(); cerrar();
-  });
-
-  document.body.appendChild(node);
-}
-
-// Doble click en mes para crear evento rápido
-grid.addEventListener('dblclick', (e)=>{
-  if (proMode!=='mes') return;
-  const cell = e.target.closest('.cal-dia'); if (!cell) return;
-  const dia = +cell.dataset.dia; const fecha = new Date(ANYO, mesVisible, dia);
-  abrirEditorEvento(toISO(fecha));
-});
-
-// Click en etiqueta de evento en mes -> abrir editor (primer evento)
-grid.addEventListener('click', (e)=>{
-  if (proMode!=='mes') return;
-  const item = e.target.closest('.month-event'); if (!item) return;
-  const cell = e.target.closest('.cal-dia'); if (!cell) return;
-  const dia = +cell.dataset.dia; const k = keyDay(mesVisible, dia);
-  const list = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
-  if (list[0]) abrirEditorEvento(toISO(new Date(ANYO, mesVisible, dia)), 0);
-});
-
-// =====================================================================
-// Notificaciones locales (10 min antes)
-// =====================================================================
-btnNotif.addEventListener('click', async ()=>{
-  if (!('Notification' in window)) return alert('Tu navegador no soporta notificaciones.');
-  const perm = await Notification.requestPermission();
-  if (perm !== 'granted') return alert('Permiso denegado.');
-  alert('Notificaciones activadas. Te avisaré 10 min antes de cada evento de hoy.');
-  scheduleTodayNotifications();
-});
-
-function scheduleTodayNotifications(){
-  if (!('Notification' in window) || Notification.permission!=='granted') return;
-  const t = new Date();
-  const k = keyDay(t.getMonth(), t.getDate());
-  const list = Array.isArray(eventosPro[k]) ? eventosPro[k] : [];
-  list.forEach(e=>{
-    const startMin = toMinutes(e.inicio||'00:00');
-    const nowMin = t.getHours()*60 + t.getMinutes();
-    const delta = (startMin - 10) - nowMin; // minutos hasta 10 min antes
-    const ms = delta * 60 * 1000;
-    if (ms > 0){
-      setTimeout(()=>{
-        new Notification('⏰ Evento en 10 min', { body: `${e.titulo} a las ${e.inicio}` });
-      }, ms);
-    }
-  });
-}
-
-// =====================================================================
-// Arranque UI básico
-// =====================================================================
-document.addEventListener('DOMContentLoaded', ()=>{
-  // Inicial portada
-  construirMes(mesVisible);
-  actualizarSidePanel();
-});
-
 </script>
-</body>
 </html>

@@ -434,6 +434,87 @@
     </div>
   </template>
 
+  <!-- Firebase SDKs para FCM (compat) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
+
+  <script>
+  // Configuración de Firebase (la misma que en el service worker)
+  const firebaseConfig = {
+    apiKey: "AIzaSyDT76OdtQM6UUPj4k6gv7O9Ow7BwH6dEWM",
+    authDomain: "calendario-ea7e0.firebaseapp.com",
+    projectId: "calendario-ea7e0",
+    storageBucket: "calendario-ea7e0.firebasestorage.app",
+    messagingSenderId: "1032562955831",
+    appId: "1:1032562955831:web:050e5438ac017c28f251b2",
+    measurementId: "G-L00QYFD1MJ"
+  };
+  // Inicializa Firebase
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+  const messaging = firebase.messaging();
+
+  // 1. Registrar el Service Worker de FCM
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/firebase-messaging-sw.js')
+      .then((registration) => {
+        console.log('Service Worker registrado con éxito:', registration);
+        requestPermissionAndGetToken();
+      })
+      .catch((error) => {
+        console.error('Fallo en el registro del Service Worker:', error);
+      });
+  } else {
+    console.warn('El navegador no soporta Service Workers. Las notificaciones push no funcionarán.');
+  }
+
+  // 2. Solicitar permiso para notificaciones y obtener el token
+  async function requestPermissionAndGetToken() {
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        console.log('Permiso de notificación concedido.');
+        // VAPID Key pública de tu proyecto (de la consola de Firebase)
+        const VAPID_KEY = 'BKo4OBAX34ekx4sYyYsYk3H0OS8rUsGJ18l8est0IhRZx_lHmvJ1Kzv7p7o47Opo1Y96Nc8xh4b7CoUfklRfnaE';
+        const currentToken = await messaging.getToken({ vapidKey: VAPID_KEY });
+        if (currentToken) {
+          console.log('Token de registro FCM:', currentToken);
+          // Guardar este token en Firestore asociado al usuario
+          auth.onAuthStateChanged(async (user) => {
+            if (user) {
+              const userDocRef = db.collection('users').doc(user.uid);
+              await userDocRef.set({
+                fcmToken: currentToken,
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+              }, { merge: true });
+              console.log('Token guardado en Firestore para', user.uid);
+            } else {
+              console.log('Usuario no autenticado, no se puede guardar el token FCM aún.');
+            }
+          });
+        } else {
+          console.log('No se pudo obtener el token de registro. Puede que el navegador no lo soporte o el usuario bloqueó las notificaciones.');
+        }
+      } else {
+        console.log('Permiso de notificación denegado.');
+      }
+    } catch (err) {
+      console.error('Error al solicitar permiso o al obtener el token:', err);
+    }
+  }
+
+  // 3. Manejar mensajes entrantes cuando la aplicación está en primer plano
+  messaging.onMessage((payload) => {
+    console.log('Mensaje recibido mientras la app está en primer plano:', payload);
+    alert(`Nueva notificación (en app): ${payload.notification.title} - ${payload.notification.body}`);
+    // También puedes mostrar una notificación nativa si lo deseas
+    // new Notification(payload.notification.title, { body: payload.notification.body });
+  });
+</script>
+
   <script>
     // =============================================================
     // UTILIDADES
@@ -954,218 +1035,200 @@ async function guardarDatosUsuarioEnFirestore(campo, valor) {
   <button id="loginGoogle" style="padding:10px 18px;border-radius:10px;background:#fffbe7;color:#2d2d6e;font-weight:700;border:1.5px solid #f9a825;cursor:pointer;">Login con Google</button>
   <button id="logout" style="padding:10px 18px;border-radius:10px;background:#f9a825;color:#fff;font-weight:700;border:none;cursor:pointer;">Logout</button>
 </div>
-<script type="module">
-  // Importar los módulos necesarios
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+<script>
+// --- Unificación de lógica Firebase (solo compat SDK) ---
+// Ya tienes firebase, firebase.auth, firebase.firestore, firebase.messaging cargados arriba
+// Instancias globales
+const authCompat = firebase.auth();
+const dbCompat = firebase.firestore();
+const messagingCompat = firebase.messaging();
 
-  // Tu configuración (copiada de Firebase Console)
-  const firebaseConfig = {
-    apiKey: "AIzaSyDT76OdtQM6UUPj4k6gv7O9Ow7BwH6dEWM",
-    authDomain: "calendario-ea7e0.firebaseapp.com",
-    projectId: "calendario-ea7e0",
-    storageBucket: "calendario-ea7e0.firebasestorage.app",
-    messagingSenderId: "1032562955831",
-    appId: "1:1032562955831:web:050e5438ac017c28f251b2",
-    measurementId: "G-L00QYFD1MJ"
-  };
+// Exporta instancias para el resto del código
+window.db = dbCompat;
 
-  // Inicializar Firebase
+// Exporta funciones de Firestore compat para el resto del código
+window.firebaseFirestore.doc = function(db, ...args) { return db.collection(args[0]).doc(args[1]); };
+window.firebaseFirestore.getDoc = async function(docRef) { return await docRef.get(); };
+window.firebaseFirestore.setDoc = async function(docRef, data, options) {
+  if (options && options.merge) return await docRef.set(data, { merge: true });
+  return await docRef.set(data);
+};
+window.firebaseFirestore.updateDoc = async function(docRef, data) { return await docRef.update(data); };
 
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  window.db = getFirestore(app);
+// --- UI Elements ---
+const loginButton = document.getElementById("loginGoogle");
+const logoutButton = document.getElementById("logout");
+const modalLoginBtn = document.getElementById("modalLoginGoogle");
+const manualLoginForm = document.getElementById("manualLoginForm");
+const manualLoginBtn = document.getElementById("manualLoginBtn");
+const loginEmail = document.getElementById("loginEmail");
+const loginPassword = document.getElementById("loginPassword");
+const loginError = document.getElementById("loginError");
+const loginModal = document.getElementById("loginModal");
+const mainApp = document.getElementById("mainApp");
 
+// --- Google Auth Provider (compat) ---
+const providerCompat = new firebase.auth.GoogleAuthProvider();
 
-  // 🔹 Login con Google (solo una vez, abajo se usa el mismo provider y auth)
-  const provider = new GoogleAuthProvider();
+// --- User display (avatar/email) ---
+const userDisplay = document.createElement('span');
+userDisplay.style.display = 'flex';
+userDisplay.style.alignItems = 'center';
+userDisplay.style.marginLeft = '10px';
+userDisplay.style.color = '#fff';
+userDisplay.style.fontWeight = 'bold';
+userDisplay.style.gap = '8px';
+loginButton.parentNode.appendChild(userDisplay);
+logoutButton.style.display = 'none';
+userDisplay.style.display = 'none';
 
-  // 🔹 Ejemplo: Logout
-  document.getElementById("logout").addEventListener("click", async () => {
-    await signOut(auth);
-    console.log("Sesión cerrada");
-  });
-
-  // 🔹 Ejemplo: Guardar un evento en Firestore
-  // 🔹 Vigilante de autenticación: onAuthStateChanged
-  // Login modal button
-  const modalLoginBtn = document.getElementById("modalLoginGoogle");
-  const manualLoginForm = document.getElementById("manualLoginForm");
-  const manualLoginBtn = document.getElementById("manualLoginBtn");
-  const loginEmail = document.getElementById("loginEmail");
-  const loginPassword = document.getElementById("loginPassword");
-  const loginError = document.getElementById("loginError");
-  const loginModal = document.getElementById("loginModal");
-  const mainApp = document.getElementById("mainApp");
-  // ✨ EXPORTA LAS FUNCIONES DE FIRESTORE AL OBJETO WINDOW ✨
-  // para que el script principal pueda usarlas en `guardarDatosUsuarioEnFirestore`
-  window.firebaseFirestore.doc = doc;
-  window.firebaseFirestore.getDoc = getDoc;
-  window.firebaseFirestore.setDoc = setDoc;
-  window.firebaseFirestore.updateDoc = updateDoc;
-
-
-  if (modalLoginBtn) {
-    modalLoginBtn.addEventListener("click", async () => {
-      try {
-        modalLoginBtn.disabled = true;
-        await signInWithPopup(auth, provider);
-      } catch (err) {
-        console.error("Error en login modal:", err);
-        if (loginError) loginError.textContent = err.message || "Error en login con Google";
-      } finally {
-        modalLoginBtn.disabled = false;
-      }
-    });
-  }
-
-  // Login manual con email y contraseña
-  if (manualLoginForm) {
-    manualLoginForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      if (!loginEmail.value || !loginPassword.value) return;
-      manualLoginBtn.disabled = true;
-      loginError.textContent = '';
-      try {
-        await signInWithEmailAndPassword(auth, loginEmail.value, loginPassword.value);
-      } catch (err) {
-        console.error("Error en login manual:", err);
-        loginError.textContent = err.message || "Error en login";
-      } finally {
-        manualLoginBtn.disabled = false;
-      }
-    });
-  }
-  const loginButton = document.getElementById("loginGoogle");
-  const logoutButton = document.getElementById("logout");
-  // Crear un span para mostrar el email del usuario
-
-  // Crear contenedor para mostrar email y foto
-  const userDisplay = document.createElement('span');
-  userDisplay.style.display = 'flex';
-  userDisplay.style.alignItems = 'center';
-  userDisplay.style.marginLeft = '10px';
-  userDisplay.style.color = '#fff';
-  userDisplay.style.fontWeight = 'bold';
-  userDisplay.style.gap = '8px';
-  loginButton.parentNode.appendChild(userDisplay);
-
-  // Estado inicial: ocultar logout y userDisplay
-  logoutButton.style.display = 'none';
-  userDisplay.style.display = 'none';
-
-  // Refuerzo: asegurar que el evento click de Google Login SIEMPRE esté conectado
-  loginButton.onclick = null;
-  loginButton.addEventListener('click', async () => {
+// --- Login con Google (modal y botón flotante) ---
+if (modalLoginBtn) {
+  modalLoginBtn.addEventListener("click", async () => {
     try {
-      await signInWithPopup(auth, provider);
+      modalLoginBtn.disabled = true;
+      await authCompat.signInWithPopup(providerCompat);
     } catch (err) {
-      console.error("Error en login con Google:", err);
+      console.error("Error en login modal:", err);
+      if (loginError) loginError.textContent = err.message || "Error en login con Google";
+    } finally {
+      modalLoginBtn.disabled = false;
     }
   });
+}
 
-  // Eliminada importación duplicada de onAuthStateChanged
-  onAuthStateChanged(auth, async (user) => { // ¡Ahora la función es correctamente asíncrona!
-    window.currentUserData = user; // Guarda el usuario globalmente
+loginButton.onclick = null;
+loginButton.addEventListener('click', async () => {
+  try {
+    await authCompat.signInWithPopup(providerCompat);
+  } catch (err) {
+    console.error("Error en login con Google:", err);
+  }
+});
 
-    if (user) {
-      // Usuario logeado
-      if (loginModal) loginModal.style.display = 'none';
-      if (mainApp) mainApp.style.display = '';
+// --- Logout ---
+logoutButton.addEventListener("click", async () => {
+  await authCompat.signOut();
+  console.log("Sesión cerrada");
+});
 
-      userDisplay.innerHTML = '';
-      if (user.photoURL) {
-        const img = document.createElement('img');
-        img.src = user.photoURL;
-        img.alt = 'Avatar';
-        img.style.width = '32px';
-        img.style.height = '32px';
-        img.style.borderRadius = '50%';
-        img.style.objectFit = 'cover';
-        userDisplay.appendChild(img);
-      }
-      const emailSpan = document.createElement('span');
-      emailSpan.textContent = user.email;
-      userDisplay.appendChild(emailSpan);
+// --- Login manual (email/password) ---
+if (manualLoginForm) {
+  manualLoginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!loginEmail.value || !loginPassword.value) return;
+    manualLoginBtn.disabled = true;
+    loginError.textContent = '';
+    try {
+      await authCompat.signInWithEmailAndPassword(loginEmail.value, loginPassword.value);
+    } catch (err) {
+      console.error("Error en login manual:", err);
+      loginError.textContent = err.message || "Error en login";
+    } finally {
+      manualLoginBtn.disabled = false;
+    }
+  });
+}
 
-      loginButton.style.display = 'none';
-      logoutButton.style.display = 'block';
-      userDisplay.style.display = 'flex';
+// --- onAuthStateChanged (compat) ---
+authCompat.onAuthStateChanged(async (user) => {
+  window.currentUserData = user;
+  if (user) {
+    if (loginModal) loginModal.style.display = 'none';
+    if (mainApp) mainApp.style.display = '';
+    userDisplay.innerHTML = '';
+    if (user.photoURL) {
+      const img = document.createElement('img');
+      img.src = user.photoURL;
+      img.alt = 'Avatar';
+      img.style.width = '32px';
+      img.style.height = '32px';
+      img.style.borderRadius = '50%';
+      img.style.objectFit = 'cover';
+      userDisplay.appendChild(img);
+    }
+    const emailSpan = document.createElement('span');
+    emailSpan.textContent = user.email;
+    userDisplay.appendChild(emailSpan);
+    loginButton.style.display = 'none';
+    logoutButton.style.display = 'block';
+    userDisplay.style.display = 'flex';
 
-      // ✨ NUEVA LÓGICA PARA CARGAR DATOS DE FIRESTORE O MIGRAR DESDE LOCALSTORAGE ✨
-      const userDocRef = doc(db, "users", user.uid); // Referencia al documento del usuario
-      const userDocSnap = await getDoc(userDocRef); // Intenta obtener el documento
-
-      if (userDocSnap.exists()) {
-        // Los datos del usuario ya están en Firestore, los cargamos en las variables globales
-        const data = userDocSnap.data();
-        window.userNotes = data.notas || {};
-        window.userEvents = data.eventos || {};
-        window.userStickers = data.stickers || {};
-        console.log("Datos del usuario cargados desde Firestore.");
-      } else {
-        // Es la primera vez que el usuario inicia sesión o no tiene datos en Firestore.
-        // Verificamos localStorage para una posible migración.
-        console.log("No hay datos de usuario en Firestore. Verificando localStorage para posible migración.");
-
-        const currentYear = new Date().getFullYear();
-        const localNotas = JSON.parse(localStorage.getItem('agenda_notas_' + currentYear) || '{}');
-        const localEventos = JSON.parse(localStorage.getItem('agenda_eventos_' + currentYear) || '{}');
-        const localStickers = JSON.parse(localStorage.getItem('agenda_stickers_' + currentYear) || '{}');
-
-        if (Object.keys(localNotas).length > 0 || Object.keys(localEventos).length > 0 || Object.keys(localStickers).length > 0) {
-          console.log("¡Migrando datos de localStorage a Firestore!");
-          window.userNotes = localNotas;
-          window.userEvents = localEventos;
-          window.userStickers = localStickers;
-          await setDoc(userDocRef, { // Crea el documento del usuario en Firestore con los datos migrados
-            notas: window.userNotes,
-            eventos: window.userEvents,
-            stickers: window.userStickers
-          });
-          console.log("Migración completada. Limpiando localStorage.");
-          localStorage.removeItem('agenda_notas_' + currentYear);
-          localStorage.removeItem('agenda_eventos_' + currentYear);
-          localStorage.removeItem('agenda_stickers_' + currentYear);
-        } else {
-          // Si no hay datos en localStorage, inicializa las variables globales como vacías
-          window.userNotes = {};
-          window.userEvents = {};
-          window.userStickers = {};
-          console.log("No hay datos en localStorage para migrar.");
-        }
-      }
-
-      // Después de cargar o migrar, fuerza la actualización de la UI del calendario.
-      if (window.actualizarCalendarioUI) {
-          window.actualizarCalendarioUI();
-      } else {
-          console.warn("actualizarCalendarioUI no está definida globalmente. La interfaz del calendario podría no actualizarse.");
-      }
-
-
+    // --- Cargar datos de Firestore o migrar desde localStorage ---
+    const userDocRef = dbCompat.collection("users").doc(user.uid);
+    const userDocSnap = await userDocRef.get();
+    if (userDocSnap.exists) {
+      const data = userDocSnap.data();
+      window.userNotes = data.notas || {};
+      window.userEvents = data.eventos || {};
+      window.userStickers = data.stickers || {};
+      console.log("Datos del usuario cargados desde Firestore.");
     } else {
-      // No logeado
-      if (loginModal) loginModal.style.display = 'flex';
-      if (mainApp) mainApp.style.display = 'none';
-
-      userDisplay.innerHTML = '';
-      loginButton.style.display = 'block';
-      logoutButton.style.display = 'none';
-      userDisplay.style.display = 'none';
-
-      // Limpiamos los datos del calendario cuando el usuario cierra sesión
-      window.currentUserData = null;
-      window.userNotes = {};
-      window.userEvents = {};
-      window.userStickers = {};
-
-      if (window.actualizarCalendarioUI) {
-          window.actualizarCalendarioUI(); // Actualiza la UI para mostrar un calendario vacío/no logeado
+      // Migrar desde localStorage si existe
+      console.log("No hay datos de usuario en Firestore. Verificando localStorage para posible migración.");
+      const currentYear = new Date().getFullYear();
+      const localNotas = JSON.parse(localStorage.getItem('agenda_notas_' + currentYear) || '{}');
+      const localEventos = JSON.parse(localStorage.getItem('agenda_eventos_' + currentYear) || '{}');
+      const localStickers = JSON.parse(localStorage.getItem('agenda_stickers_' + currentYear) || '{}');
+      if (Object.keys(localNotas).length > 0 || Object.keys(localEventos).length > 0 || Object.keys(localStickers).length > 0) {
+        console.log("¡Migrando datos de localStorage a Firestore!");
+        window.userNotes = localNotas;
+        window.userEvents = localEventos;
+        window.userStickers = localStickers;
+        await userDocRef.set({
+          notas: window.userNotes,
+          eventos: window.userEvents,
+          stickers: window.userStickers
+        });
+        console.log("Migración completada. Limpiando localStorage.");
+        localStorage.removeItem('agenda_notas_' + currentYear);
+        localStorage.removeItem('agenda_eventos_' + currentYear);
+        localStorage.removeItem('agenda_stickers_' + currentYear);
+      } else {
+        window.userNotes = {};
+        window.userEvents = {};
+        window.userStickers = {};
+        console.log("No hay datos en localStorage para migrar.");
       }
     }
-  });
+    if (window.actualizarCalendarioUI) {
+      window.actualizarCalendarioUI();
+    } else {
+      console.warn("actualizarCalendarioUI no está definida globalmente. La interfaz del calendario podría no actualizarse.");
+    }
+    // --- FCM: Solicitar token y guardar en Firestore ---
+    if (window.Notification && Notification.permission === 'granted') {
+      try {
+        const VAPID_KEY = 'BKo4OBAX34ekx4sYyYsYk3H0OS8rUsGJ18l8est0IhRZx_lHmvJ1Kzv7p7o47Opo1Y96Nc8xh4b7CoUfklRfnaE';
+        const currentToken = await messagingCompat.getToken({ vapidKey: VAPID_KEY });
+        if (currentToken) {
+          await userDocRef.set({
+            fcmToken: currentToken,
+            lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+          console.log('Token FCM guardado en Firestore para', user.uid);
+        }
+      } catch (err) {
+        console.error('Error obteniendo o guardando el token FCM:', err);
+      }
+    }
+  } else {
+    // No logeado
+    if (loginModal) loginModal.style.display = 'flex';
+    if (mainApp) mainApp.style.display = 'none';
+    userDisplay.innerHTML = '';
+    loginButton.style.display = 'block';
+    logoutButton.style.display = 'none';
+    userDisplay.style.display = 'none';
+    window.currentUserData = null;
+    window.userNotes = {};
+    window.userEvents = {};
+    window.userStickers = {};
+    if (window.actualizarCalendarioUI) {
+      window.actualizarCalendarioUI();
+    }
+  }
+});
 </script>
 </html>
 
